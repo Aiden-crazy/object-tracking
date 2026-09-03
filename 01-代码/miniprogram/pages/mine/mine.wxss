@@ -1,0 +1,17 @@
+/* pages/mine/mine.wxss —— 个人中心样式 */
+.profile { text-align: center; padding: 40rpx 24rpx; }
+.avatar {
+  width: 110rpx; height: 110rpx; border-radius: 50%;
+  background: #2a5298; color: #fff; font-size: 48rpx;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16rpx;
+}
+.p-name { font-size: 34rpx; font-weight: bold; }
+.p-sub { color: #999; font-size: 24rpx; margin-top: 8rpx; }
+.menu { padding: 8rpx 24rpx; }
+.menu-item {
+  padding: 28rpx 4rpx; border-bottom: 1rpx solid #f0f0f0; font-size: 30rpx;
+}
+.menu-item:last-child { border-bottom: none; }
+.pwd-box { padding: 20rpx 0; }
+.footer { text-align: center; color: #bbb; font-size: 22rpx; margin-top: 40rpx; }

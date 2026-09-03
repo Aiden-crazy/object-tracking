@@ -1,0 +1,17 @@
+<view class="login-page">
+  <view class="title">单目标跟踪系统</view>
+  <view class="subtitle">综合实践III 课程设计 · 用户端</view>
+
+  <view class="card">
+    <view class="input-item">
+      <view class="label">用户名</view>
+      <input placeholder="请输入用户名" value="{{username}}" bindinput="onUsername" />
+    </view>
+    <view class="input-item">
+      <view class="label">密码</view>
+      <input password placeholder="请输入密码" value="{{password}}" bindinput="onPassword" />
+    </view>
+    <button class="btn-primary" bindtap="doLogin" disabled="{{loading}}">登 录</button>
+    <view class="reg-link" bindtap="goRegister">还没有账号？立即注册</view>
+  </view>
+</view>

@@ -1,0 +1,19 @@
+<view class="card">
+  <view class="input-item">
+    <view class="label">用户名 *</view>
+    <input placeholder="登录账号（唯一）" value="{{username}}" bindinput="onUsername" />
+  </view>
+  <view class="input-item">
+    <view class="label">昵称</view>
+    <input placeholder="选填，默认同用户名" value="{{nickname}}" bindinput="onNickname" />
+  </view>
+  <view class="input-item">
+    <view class="label">密码 *（至少6位）</view>
+    <input password placeholder="请输入密码" value="{{password}}" bindinput="onPassword" />
+  </view>
+  <view class="input-item">
+    <view class="label">确认密码 *</view>
+    <input password placeholder="请再次输入密码" value="{{password2}}" bindinput="onPassword2" />
+  </view>
+  <button class="btn-primary" bindtap="doRegister" disabled="{{loading}}">注 册</button>
+</view>

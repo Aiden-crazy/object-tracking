@@ -1,0 +1,13 @@
+# 统一换行符：仓库内 LF，Windows 检出 CRLF
+* text=auto
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp4 binary
+*.docx binary
+*.doc binary
+*.pdf binary
+*.pptx binary

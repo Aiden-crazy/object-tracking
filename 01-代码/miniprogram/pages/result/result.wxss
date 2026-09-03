@@ -1,0 +1,29 @@
+/* pages/result/result.wxss —— 结果页样式 */
+.state-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: bold; margin-bottom: 20rpx;
+}
+.center { text-align: center; padding: 40rpx 0; }
+.loading { color: #f39c12; }
+.progress-bar {
+  margin: 20rpx auto 0; width: 70%; height: 12rpx; border-radius: 6rpx;
+  background: #e8ecf5; overflow: hidden;
+}
+.progress-inner {
+  width: 40%; height: 100%; border-radius: 6rpx;
+  background: linear-gradient(90deg, #2a5298, #6f9bd8);
+  animation: slide 1.2s infinite ease-in-out;
+}
+@keyframes slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+.result-video { width: 100%; height: 400rpx; border-radius: 12rpx; background: #000; }
+.sub-title { font-weight: bold; margin: 22rpx 0 10rpx; }
+.stats-text {
+  background: #f7f8fc; border-radius: 10rpx; padding: 16rpx;
+  display: block; font-size: 26rpx; line-height: 1.7; color: #333;
+}
+.desc { color: #888; font-size: 24rpx; line-height: 1.6; }
+.err-text { color: #e74c3c; }
+.btn-primary { margin-top: 30rpx; }

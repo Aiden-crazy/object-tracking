@@ -1,0 +1,5 @@
+/* pages/login/login.wxss —— 登录页样式 */
+.login-page { padding: 120rpx 40rpx 0; }
+.title { text-align: center; font-size: 44rpx; font-weight: bold; color: #2a5298; }
+.subtitle { text-align: center; color: #888; font-size: 24rpx; margin: 12rpx 0 40rpx; }
+.reg-link { text-align: center; color: #2a5298; margin-top: 24rpx; font-size: 26rpx; }

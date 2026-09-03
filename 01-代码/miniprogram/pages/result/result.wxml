@@ -1,0 +1,33 @@
+<view class="card">
+  <view class="state-row">
+    <text>任务 #{{taskId}}</text>
+    <text class="badge {{status}}">{{status}}</text>
+  </view>
+
+  <!-- 处理中 -->
+  <view wx:if="{{status==='PENDING' || status==='PROCESSING'}}" class="center">
+    <text class="loading">视觉处理中，请稍候…</text>
+    <view class="progress-bar"><view class="progress-inner"></view></view>
+  </view>
+
+  <!-- 成功：结果视频 + 统计 -->
+  <block wx:if="{{status==='SUCCESS'}}">
+    <video wx:if="{{resultUrl}}" src="{{resultUrl}}" class="result-video"
+           controls object-fit="contain"></video>
+    <view class="sub-title">跟踪统计</view>
+    <text class="stats-text">{{statsText}}</text>
+    <view class="sub-title">说明</view>
+    <text class="desc">
+      绿框表示跟踪中；红框/SEARCHING 表示目标被遮挡丢失后的搜索状态；
+      系统重新找到目标后会恢复跟踪并继续输出轨迹。
+    </text>
+  </block>
+
+  <!-- 失败 -->
+  <view wx:if="{{status==='FAILED'}}" class="center">
+    <text class="err-text">处理失败：{{errorMsg}}</text>
+  </view>
+
+  <button wx:if="{{status==='SUCCESS' || status==='FAILED'}}"
+          class="btn-primary" bindtap="goRecords">查看我的记录</button>
+</view>

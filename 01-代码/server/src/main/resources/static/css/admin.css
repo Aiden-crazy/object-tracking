@@ -1,0 +1,117 @@
+/* admin.css —— 综合实践III《单目标跟踪系统》Web 管理端样式
+ * 作者：【姓名】  学号：【学号】  创建时间：2026-07
+ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: #f0f2f5; color: #333; font-size: 14px;
+}
+.hidden { display: none !important; }
+
+/* ---------- 登录 ---------- */
+.login-wrap {
+  height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+}
+.login-card {
+  background: #fff; width: 360px; padding: 36px 32px; border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.25); text-align: center;
+}
+.login-card h2 { font-size: 20px; color: #1e3c72; margin-bottom: 6px; }
+.login-card .sub { color: #888; font-size: 12px; margin-bottom: 20px; }
+.login-card .msg { color: #e74c3c; min-height: 20px; margin-top: 10px; font-size: 13px; }
+
+/* ---------- 通用控件 ---------- */
+.ipt {
+  width: 100%; padding: 9px 12px; border: 1px solid #d9d9d9; border-radius: 6px;
+  outline: none; font-size: 14px; transition: border .2s;
+}
+.ipt:focus { border-color: #2a5298; }
+select.ipt { width: auto; }
+.btn {
+  padding: 8px 18px; border: 1px solid #2a5298; background: #fff; color: #2a5298;
+  border-radius: 6px; cursor: pointer; font-size: 14px; transition: all .2s;
+}
+.btn:hover { background: #eef3fb; }
+.btn.primary { background: #2a5298; color: #fff; }
+.btn.primary:hover { background: #1e3c72; }
+.btn.block { width: 100%; margin-top: 8px; padding: 11px; }
+.btn.ghost { border-color: #fff; color: #fff; background: transparent; }
+.btn.ghost:hover { background: rgba(255,255,255,.15); }
+.btn.sm { padding: 4px 10px; font-size: 13px; border-radius: 4px; }
+.btn.danger { border-color: #e74c3c; color: #e74c3c; }
+.btn.danger:hover { background: #fdecea; }
+
+/* ---------- 主界面 ---------- */
+.main { max-width: 1180px; margin: 0 auto; padding: 0 16px 60px; }
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  background: #fff; padding: 14px 22px; margin: 16px 0;
+  border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.topbar .brand { font-weight: bold; color: #1e3c72; font-size: 17px; }
+.userbox { display: flex; align-items: center; gap: 14px; color: #666; }
+
+.cards { display: flex; gap: 14px; margin-bottom: 18px; }
+.card {
+  flex: 1; background: #fff; border-radius: 10px; padding: 18px;
+  text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  border-top: 4px solid #2a5298;
+}
+.card.ok { border-top-color: #27ae60; }
+.card.run { border-top-color: #f39c12; }
+.card.bad { border-top-color: #e74c3c; }
+.card .num { font-size: 28px; font-weight: bold; color: #1e3c72; }
+.card .lbl { color: #888; margin-top: 6px; }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.tab {
+  padding: 9px 22px; border: none; background: #e4e7ee; color: #555;
+  border-radius: 8px 8px 0 0; cursor: pointer; font-size: 15px;
+}
+.tab.active { background: #2a5298; color: #fff; }
+.tab-panel { background: #fff; border-radius: 0 10px 10px 10px;
+  padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.panel-head { display: flex; gap: 10px; margin-bottom: 14px; }
+.panel-head .ipt { width: 260px; }
+
+table.grid { width: 100%; border-collapse: collapse; }
+table.grid th, table.grid td {
+  border: 1px solid #e8e8e8; padding: 9px 10px; text-align: center; font-size: 13px;
+}
+table.grid th { background: #f7f8fc; color: #333; }
+table.grid tr:hover td { background: #fafbff; }
+.status { padding: 3px 10px; border-radius: 20px; font-size: 12px; color: #fff; }
+.status.PENDING { background: #95a5a6; }
+.status.PROCESSING { background: #f39c12; }
+.status.SUCCESS { background: #27ae60; }
+.status.FAILED { background: #e74c3c; }
+
+.pager { margin-top: 14px; text-align: right; color: #666; font-size: 13px; }
+.pager button {
+  margin: 0 4px; padding: 4px 10px; border: 1px solid #d9d9d9; background: #fff;
+  cursor: pointer; border-radius: 4px;
+}
+.pager button.cur { background: #2a5298; color: #fff; border-color: #2a5298; }
+.pager button:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ---------- 弹窗 ---------- */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center; z-index: 99;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; width: 760px; max-width: 94vw;
+  padding: 18px; box-shadow: 0 10px 40px rgba(0,0,0,.3);
+}
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: bold; margin-bottom: 12px;
+}
+.modal-head .close { border: none; background: none; font-size: 22px;
+  cursor: pointer; color: #888; }
+.modal-box video { width: 100%; border-radius: 8px; background: #000; max-height: 60vh; }
+.modal-box .stats {
+  margin-top: 12px; background: #f7f8fc; padding: 10px; border-radius: 6px;
+  font-size: 12px; max-height: 140px; overflow: auto; white-space: pre-wrap;
+}

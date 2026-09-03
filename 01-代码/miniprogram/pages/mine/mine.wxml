@@ -1,0 +1,27 @@
+<view class="card profile" wx:if="{{user}}">
+  <view class="avatar">{{avatarChar}}</view>
+  <view class="p-name">{{user.nickname}}</view>
+  <view class="p-sub">@{{user.username}}　·　角色：{{user.role === 'ADMIN' ? '管理员' : '普通用户'}}</view>
+</view>
+
+<view class="card menu">
+  <view class="menu-item" bindtap="togglePwd">修改密码　›</view>
+  <view wx:if="{{showPwdBox}}" class="pwd-box">
+    <view class="input-item">
+      <view class="label">原密码</view>
+      <input password placeholder="请输入原密码" value="{{oldPassword}}" bindinput="onOld" />
+    </view>
+    <view class="input-item">
+      <view class="label">新密码（至少6位）</view>
+      <input password placeholder="请输入新密码" value="{{newPassword}}" bindinput="onNew" />
+    </view>
+    <view class="input-item">
+      <view class="label">确认新密码</view>
+      <input password placeholder="请再次输入" value="{{newPassword2}}" bindinput="onNew2" />
+    </view>
+    <button class="btn-primary" bindtap="doChangePwd">确认修改</button>
+  </view>
+  <view class="menu-item" bindtap="logout">退出登录　›</view>
+</view>
+
+<view class="footer">综合实践III · 单目标跟踪系统</view>

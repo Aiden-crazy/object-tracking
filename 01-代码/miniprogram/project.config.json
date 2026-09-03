@@ -1,0 +1,14 @@
+{
+  "desc": "单目标跟踪系统小程序",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.3.4",
+  "appid": "touristappid",
+  "projectname": "zongshe3-track-miniprogram",
+  "condition": {}
+}

@@ -1,0 +1,11 @@
+/* pages/records/records.wxss —— 记录列表样式 */
+.empty { text-align: center; color: #999; padding: 100rpx 0; }
+.record { margin: 20rpx; }
+.record-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12rpx; font-weight: bold;
+}
+.record-id { color: #2a5298; }
+.record-line { font-size: 25rpx; color: #666; line-height: 1.8; }
+.record-line.err { color: #e74c3c; }
+.loading-text { text-align: center; color: #999; padding: 20rpx; font-size: 24rpx; }

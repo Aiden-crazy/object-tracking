@@ -1,0 +1,15 @@
+<view wx:if="{{list.length===0}}" class="empty">暂无处理记录，去上传一段视频试试吧</view>
+
+<view wx:for="{{list}}" wx:key="id" class="card record" data-id="{{item.id}}" bindtap="openDetail">
+  <view class="record-head">
+    <text class="record-id">任务 #{{item.id}}</text>
+    <text class="badge {{item.status}}">{{item.status}}</text>
+  </view>
+  <view class="record-line">文件：{{item.fileName || '-'}}</view>
+  <view class="record-line">类型：{{item.mediaType}}　目标框：{{item.bbox || '自动'}}</view>
+  <view class="record-line">提交：{{item.createTime}}</view>
+  <view wx:if="{{item.errorMsg}}" class="record-line err">失败原因：{{item.errorMsg}}</view>
+</view>
+
+<view wx:if="{{loading}}" class="loading-text">加载中…</view>
+<view wx:if="{{!hasMore && list.length>0}}" class="loading-text">没有更多了</view>

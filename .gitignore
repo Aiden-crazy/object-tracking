@@ -1,0 +1,28 @@
+# ============================================================
+# .gitignore —— 综合实践III《单目标跟踪系统》
+# 说明：保留可执行 jar（跨电脑双击即用），忽略构建中间产物与运行数据。
+# ============================================================
+
+# --- Java / Maven 构建中间产物（保留 target/*.jar）---
+01-代码/server/target/
+!01-代码/server/target/
+01-代码/server/target/**
+!01-代码/server/target/*.jar
+
+# --- 运行时数据（上传文件、H2 数据库、视觉输出，均可自动重建）---
+01-代码/server/uploads/
+01-代码/server/trackdb.mv.db
+01-代码/server/trackdb.trace.db
+demo/vision_out/
+demo/.edge*/
+
+# --- Python ---
+__pycache__/
+*.pyc
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+desktop.ini

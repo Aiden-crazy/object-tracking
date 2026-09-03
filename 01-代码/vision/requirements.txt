@@ -1,0 +1,11 @@
+# ============================================================
+# requirements.txt —— 综合实践III《单目标跟踪系统》视觉服务 Python 依赖
+# 作者：【姓名】  学号：【学号】  创建时间：2026-07
+# 安装：pip install -r requirements.txt
+# ============================================================
+opencv-python>=4.8
+numpy>=1.24
+fastapi>=0.100
+uvicorn>=0.23
+python-multipart>=0.0.6
+imageio-ffmpeg>=0.4.9

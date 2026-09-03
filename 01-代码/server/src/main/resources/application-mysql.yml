@@ -1,0 +1,10 @@
+# ============================================================
+# application-mysql.yml —— 可选：MySQL 数据库（需已安装 MySQL 并先执行 sql/init.sql）
+# 启动方式：java -jar track-server-1.0.0.jar --spring.profiles.active=mysql
+# ============================================================
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/zongshe3_track?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: "123456"

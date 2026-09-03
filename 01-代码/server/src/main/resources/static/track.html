@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<!--
+ * track.html —— 综合实践III《单目标跟踪系统》网页检测端
+ * 作者：【姓名】  学号：【学号】  创建时间：2026-07
+ * 功能描述：
+ *   1) 将视频【拖拽】到页面、点击选择、或直接 Ctrl+V 粘贴，即可发起检测；
+ *   2) 可提取视频首帧在画布上【框选目标】或使用自动中央目标；
+ *   3) 服务端完成跟踪后自动展示结果视频与统计（丢失/恢复/FPS 等）；
+ *   4) 底部展示本人历史任务记录，可点击回看。
+ *   5) 附带 ?demo=1 参数：自动展示最近一条成功结果，便于演示与截图。
+ * 访问：http://localhost:8080/track.html
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>单目标跟踪系统 - 网页检测端</title>
+  <link rel="stylesheet" href="css/track.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="index.html">单目标跟踪系统</a> <span class="slash">/</span> 网页检测端</div>
+  <div class="userbox">
+    <span id="who">连接中…</span>
+    <a class="btn-mini" href="admin.html">管理端</a>
+  </div>
+</header>
+
+<main class="main">
+  <!-- 1. 上传区 -->
+  <section id="secUpload" class="card">
+    <div class="step">第 1 步 · 放入视频</div>
+    <div id="drop" class="drop" tabindex="0">
+      <div class="drop-icon">⬇</div>
+      <div class="drop-main">将视频文件<b>拖拽到此处</b></div>
+      <div class="drop-sub">或 点击选择文件 ／ 在页面内按 Ctrl+V 直接粘贴（支持 mp4 / avi / mov / mkv 等）</div>
+      <input id="fileInput" type="file" accept="video/*" hidden>
+    </div>
+
+    <!-- 选择后的预览与框选 -->
+    <div id="previewBox" class="hidden">
+      <div class="step">第 2 步 · 预览并指定目标（可跳过，默认自动取画面中央）</div>
+      <div class="preview-flex">
+        <video id="srcVideo" controls muted></video>
+        <div class="box-tools">
+          <button id="extractBtn" class="btn primary">提取首帧 · 画框选目标</button>
+          <div id="canvasWrap" class="hidden">
+            <canvas id="boxCanvas"></canvas>
+            <div class="hint">在画面上按住鼠标左键拖拽，框住要跟踪的目标</div>
+          </div>
+          <div id="bboxInfo" class="hidden bbox-info"></div>
+          <button id="resetBox" class="btn hidden">清除框选（使用自动目标）</button>
+        </div>
+      </div>
+    </div>
+
+    <button id="submitBtn" class="btn primary big hidden">开始检测</button>
+    <div id="uploadMsg" class="msg"></div>
+  </section>
+
+  <!-- 2. 处理进度 -->
+  <section id="secProgress" class="card hidden">
+    <div class="step">正在处理 · 任务 #<span id="taskNo">-</span></div>
+    <div class="progress-bar"><div class="progress-inner" id="progressInner"></div></div>
+    <div id="progressText" class="progress-text">已提交，服务器视觉模块正在执行单目标跟踪…</div>
+  </section>
+
+  <!-- 3. 结果区 -->
+  <section id="secResult" class="card hidden">
+    <div class="step">检测结果 · 任务 #<span id="resTaskNo">-</span>
+      <span id="resBadge" class="badge">SUCCESS</span></div>
+    <video id="resVideo" controls class="res-video"></video>
+    <div id="statsGrid" class="stats-grid"></div>
+    <div id="resError" class="err hidden"></div>
+    <div class="result-tip">绿框=跟踪中；红框/SEARCHING=目标遮挡丢失后搜索；系统会自动找回并继续跟踪。</div>
+  </section>
+
+  <!-- 4. 历史记录 -->
+  <section class="card">
+    <div class="step">我的检测记录</div>
+    <table class="grid">
+      <thead><tr><th>ID</th><th>文件</th><th>目标框</th><th>状态</th><th>提交时间</th><th>操作</th></tr></thead>
+      <tbody id="hisRows"><tr><td colspan="6" class="empty">暂无记录，上传第一个视频试试吧</td></tr></tbody>
+    </table>
+    <div class="his-more" id="hisMore"></div>
+  </section>
+</main>
+
+<script src="js/track.js"></script>
+</body>
+</html>

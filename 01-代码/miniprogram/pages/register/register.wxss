@@ -1,0 +1,2 @@
+/* pages/register/register.wxss —— 注册页样式 */
+.card { margin-top: 40rpx; }

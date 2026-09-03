@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<!--
+ * admin.html —— 综合实践III《单目标跟踪系统》Web 管理端
+ * 作者：【姓名】  学号：【学号】  创建时间：2026-07
+ * 功能描述：管理员登录后可对用户进行 查询/新增/删除/重置密码，
+ *           查看全部视觉任务记录与跟踪结果视频，查看系统统计。
+ * 访问：http://localhost:8080/admin.html   默认账号 admin / 123456
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>单目标跟踪系统 - Web管理端</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<!-- ==================== 登录页 ==================== -->
+<div id="loginView" class="login-wrap">
+  <div class="login-card">
+    <h2>单目标跟踪系统 · 管理端</h2>
+    <p class="sub">综合实践III 课程设计</p>
+    <input id="loginUser" class="ipt" placeholder="用户名">
+    <input id="loginPwd" type="password" class="ipt" placeholder="密码">
+    <button id="loginBtn" class="btn primary block">登 录</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+</div>
+
+<!-- ==================== 主界面 ==================== -->
+<div id="mainView" class="main hidden">
+  <header class="topbar">
+    <div class="brand">单目标跟踪系统 · Web管理端</div>
+    <div class="userbox">
+      <span id="who"></span>
+      <button id="logoutBtn" class="btn ghost">退出登录</button>
+    </div>
+  </header>
+
+  <!-- 统计卡片 -->
+  <section class="cards">
+    <div class="card"><div class="num" id="stUser">-</div><div class="lbl">用户总数</div></div>
+    <div class="card"><div class="num" id="stTask">-</div><div class="lbl">任务总数</div></div>
+    <div class="card ok"><div class="num" id="stSuccess">-</div><div class="lbl">处理成功</div></div>
+    <div class="card run"><div class="num" id="stProc">-</div><div class="lbl">处理中</div></div>
+    <div class="card bad"><div class="num" id="stFailed">-</div><div class="lbl">处理失败</div></div>
+  </section>
+
+  <!-- 导航 -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="users">用户管理</button>
+    <button class="tab" data-tab="tasks">任务记录</button>
+  </nav>
+
+  <!-- 用户管理 -->
+  <section id="tab-users" class="tab-panel">
+    <div class="panel-head">
+      <input id="kwUsers" class="ipt" placeholder="按用户名/昵称搜索">
+      <button id="searchUsersBtn" class="btn">查询</button>
+      <button id="addUserBtn" class="btn primary">+ 新增用户</button>
+    </div>
+    <table class="grid">
+      <thead>
+        <tr><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr>
+      </thead>
+      <tbody id="userRows"></tbody>
+    </table>
+    <div class="pager" id="userPager"></div>
+  </section>
+
+  <!-- 任务记录 -->
+  <section id="tab-tasks" class="tab-panel hidden">
+    <div class="panel-head">
+      <select id="fltStatus" class="ipt">
+        <option value="">全部状态</option>
+        <option value="PENDING">待处理</option>
+        <option value="PROCESSING">处理中</option>
+        <option value="SUCCESS">成功</option>
+        <option value="FAILED">失败</option>
+      </select>
+      <button id="searchTasksBtn" class="btn">查询</button>
+    </div>
+    <table class="grid">
+      <thead>
+        <tr><th>ID</th><th>提交用户</th><th>类型</th><th>文件</th><th>目标框</th>
+            <th>状态</th><th>提交时间</th><th>操作</th></tr>
+      </thead>
+      <tbody id="taskRows"></tbody>
+    </table>
+    <div class="pager" id="taskPager"></div>
+  </section>
+</div>
+
+<!-- 结果视频弹窗 -->
+<div id="videoModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">跟踪结果视频 <button class="close" id="closeModal">×</button></div>
+    <video id="resultVideo" controls autoplay muted></video>
+    <pre id="resultStats" class="stats"></pre>
+  </div>
+</div>
+
+<script src="js/admin.js"></script>
+</body>
+</html>

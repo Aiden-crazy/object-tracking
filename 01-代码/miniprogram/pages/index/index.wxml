@@ -1,0 +1,44 @@
+<view class="page">
+
+  <view class="card">
+    <view class="step-title">1. 选择要跟踪的视频</view>
+    <view class="pick-area" bindtap="chooseVideo">
+      <block wx:if="{{!videoPath}}">
+        <text class="pick-icon">＋</text>
+        <text class="pick-text">点击从相册/拍摄选择视频</text>
+      </block>
+      <block wx:else>
+        <video wx:if="{{videoPath}}" src="{{videoPath}}" class="preview"
+               controls object-fit="contain"></video>
+        <text class="file-name">已选：{{videoName}}</text>
+        <text class="change-link">重新选择</text>
+      </block>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="step-title">2. 指定跟踪目标</view>
+    <radio-group bindchange="onBoxMode">
+      <label class="radio-row">
+        <radio value="auto" checked="{{boxMode==='auto'}}" color="#2a5298" />
+        <text>自动选择目标（画面中央区域）</text>
+      </label>
+      <label class="radio-row">
+        <radio value="manual" checked="{{boxMode==='manual'}}" color="#2a5298" />
+        <text>手动输入首帧目标框（x,y,宽,高 像素）</text>
+      </label>
+    </radio-group>
+    <view wx:if="{{boxMode==='manual'}}" class="bbox-row">
+      <input class="bbox-input" type="number" placeholder="x" value="{{bx}}" bindinput="onBx" />
+      <input class="bbox-input" type="number" placeholder="y" value="{{by}}" bindinput="onBy" />
+      <input class="bbox-input" type="number" placeholder="宽" value="{{bw}}" bindinput="onBw" />
+      <input class="bbox-input" type="number" placeholder="高" value="{{bh}}" bindinput="onBh" />
+    </view>
+    <view class="tip">提示：目标被短暂遮挡后，系统会自动重新捕捉并继续跟踪。</view>
+  </view>
+
+  <button class="btn-primary submit-btn" bindtap="submit" disabled="{{submitting}}">
+    {{submitting ? '提交中...' : '3. 提交处理'}}
+  </button>
+
+</view>
