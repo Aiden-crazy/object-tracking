@@ -129,8 +129,11 @@ def build_ch3(doc):
              "之间为 1:N 联系。")
     add_fig(doc, F("fig4_1_数据库E-R图.png"), "图3-5 数据库 E-R 图", width_cm=13.5)
     add_body(doc,
-             "数据库物理结构设计选用 MySQL 8.0，数据库名 zongshe3_track，字符集 utf8mb4。各数据表"
-             "结构如表3-3、表3-4所示（表中 PK 为主键、FK 为外键、Not null 为非空）。")
+             "数据库物理结构设计采用 MySQL 语法规范设计，库名 zongshe3_track，字符集 utf8mb4。为便于"
+             "跨电脑演示与测试，系统默认以内嵌 H2 数据库运行（H2 以 MySQL 兼容模式启动，免安装、"
+             "零外部依赖，数据库文件自动生成于运行目录），同时保留 MySQL 配置（--spring.profiles"
+             ".active=mysql 可切换，需先执行 sql/init.sql）。各数据表结构如表3-3、表3-4所示（表中 "
+             "PK 为主键、FK 为外键、Not null 为非空）。")
     add_table(doc, "表3-3 用户表 t_user 结构",
               ["字段名", "中文名", "类型", "主键/外键", "备注"],
               [
@@ -330,7 +333,7 @@ def build_ch4(doc):
               [
                   ["操作系统", "Windows 11"],
                   ["Web 后端", "Spring Boot 3.0.2 / Java 17 / MyBatis"],
-                  ["数据库", "MySQL 8.0.44（localhost:3306）"],
+                  ["数据库", "内嵌 H2（MySQL 兼容模式，默认，免安装）；亦可切换 MySQL 8.0"],
                   ["视觉处理", "Python 3.13 + OpenCV 4.10 + FastAPI"],
                   ["测试视频", "合成视频 640×480、30fps、420 帧（含遮挡场景）"],
                   ["浏览器/工具", "Edge（Web 管理端）、微信开发者工具（小程序）、Postman/命令行接口测试"],
