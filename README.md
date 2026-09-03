@@ -11,7 +11,10 @@
 
 1. **装 Python 3.10+**（https://www.python.org/downloads/ ，安装时勾选 *Add python.exe to PATH*）
 2. **双击 `启动-网页检测端.bat`**（或 `启动-管理端.bat`）
+   > 若中文文件名在你的系统/解压工具中显示异常，请用英文别名脚本：`Start-Detect-Page.bat` / `Start-Admin.bat`
 3. 等待窗口提示"服务全部就绪"，**浏览器自动打开**
+
+> 📁 四个启动脚本都在**仓库最外层根目录**（与 README.md 同一层，解压/克隆后即在该文件夹根目录）。
 
 启动脚本会自动完成以下事情（无需手动敲任何命令）：
 - ✅ 检查 Python，缺失时尝试 `winget` 自动安装；
@@ -35,7 +38,8 @@
 
 ```
 综设3-单目标跟踪/
-├── 启动-网页检测端.bat / 启动-管理端.bat     # ★ 双击启动脚本（自动开浏览器+自动装依赖）
+├── 启动-网页检测端.bat / Start-Detect-Page.bat   # ★ 双击启动（检测端，自动开浏览器+装依赖）
+├── 启动-管理端.bat / Start-Admin.bat             # ★ 双击启动（管理端，英文名为兼容别名）
 ├── 01-代码/
 │   ├── vision/              # 视觉处理模块（Python + OpenCV + FastAPI）
 │   │   ├── tracker.py           # 跟踪器核心：CSRT + 遮挡检测/重检测状态机
