@@ -74,7 +74,12 @@
 ```bash
 # Python 依赖（脚本会自动装，手动时执行）
 pip install -r 01-代码/vision/requirements.txt
-# Java 17（JDK/JRE 均可）；MySQL 不再需要（默认 H2）
+#   ↑ 注意：跟踪算法基于 CSRT 跟踪器，必须用 opencv-contrib-python（不是 opencv-python）。
+#     requirements.txt 已锁定 `opencv-contrib-python>=4.8,<5`：非 contrib 版没有
+#     cv2.legacy/CSRT，OpenCV 5.0 起 CSRT 已被彻底移除。
+#     （该文件首行的 `# -*- coding: utf-8 -*-` 请勿删除：缺它时中文 Windows 下 pip
+#       会按 GBK 解码而报 UnicodeDecodeError。）
+# Java 17+（JDK/JRE 均可）；MySQL 不再需要（默认 H2）
 ```
 
 ### 第 2 步：启动视觉服务（9000）
@@ -168,6 +173,14 @@ git push -u origin main
   或直接使用"自动目标"检测。依赖 `pip install imageio-ffmpeg`（脚本会自动装）。
 - **双击脚本提示 Python/Java 缺失**：脚本会自动安装/下载；若失败请按提示手动安装
   Python 3.10+（勾选 Add to PATH）或 Java 17（adoptium.net），再双击一次。
+- **明明装了 Python/Java，脚本却说找不到**：启动脚本已不依赖 PATH，会依次自动探测
+  PATH → `py` 启动器 → 注册表 → `JAVA_HOME` → 常见安装目录（含 `D:\Software\...`
+  这类自定义路径）。若仍未识别，可手动指定：
+  `powershell -ExecutionPolicy Bypass -File tools\start_all.ps1 -PythonPath "D:\...\python.exe" -JavaPath "D:\...\java.exe"`
+- **任务失败并提示"无法创建跟踪器"**：OpenCV 装成了非 contrib 版（`import cv2` 正常，
+  但没有 CSRT）。修复：
+  `pip uninstall -y opencv-python opencv-python-headless` 然后
+  `pip install "opencv-contrib-python>=4.8,<5"`；再次运行启动脚本会自动修正。
 - **第一次双击脚本 Windows 弹"安全警告"**：点"仍要运行"。
 - **同学局域网访问不了**：确认双方同网段、防火墙允许 Java/Python 通信（弹出询问时点允许），
   浏览器访问 `http://<运行电脑IP>:8080/track.html`。

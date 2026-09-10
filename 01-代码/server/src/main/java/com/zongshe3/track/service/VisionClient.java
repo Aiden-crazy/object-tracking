@@ -34,6 +34,48 @@ public class VisionClient {
     private String visionUrl;
 
     /**
+     * 首帧准备：让视觉服务提取首帧图片，并给出自动识别的目标框建议。
+     * 供小程序"先看首帧图、再手指画框"的两段式流程使用。
+     *
+     * @param videoPath 服务器本地视频绝对路径
+     * @param outImage  首帧图片的输出绝对路径（由本服务指定，便于直接落到 /files 可访问目录）
+     * @return {image: 图片绝对路径, width, height, autoBbox: "x,y,w,h" 或空串}
+     */
+    public Map<String, String> prepare(String videoPath, String outImage) {
+        try {
+            Map<String, String> body = new HashMap<>();
+            body.put("video_path", videoPath);
+            body.put("out_image", outImage);
+            String json = mapper.writeValueAsString(body);
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(visionUrl + "/api/v1/prepare"))
+                    .timeout(Duration.ofSeconds(120))
+                    .header("Content-Type", "application/json; charset=utf-8")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+            HttpResponse<String> resp = client.send(req,
+                    HttpResponse.BodyHandlers.ofString());
+            JsonNode node = mapper.readTree(resp.body());
+            if (node.path("code").asInt() != 0) {
+                throw new BizException("视觉服务返回错误: " + node.path("msg").asText());
+            }
+            Map<String, String> out = new HashMap<>();
+            out.put("image", node.path("image").asText());
+            out.put("width", String.valueOf(node.path("width").asInt()));
+            out.put("height", String.valueOf(node.path("height").asInt()));
+            out.put("autoBbox", node.path("auto_bbox").isNull()
+                    ? "" : node.path("auto_bbox").asText());
+            return out;
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("调用视觉服务(prepare)失败", e);
+            throw new BizException("首帧提取失败，请确认 python api_service.py 已启动: "
+                    + e.getMessage());
+        }
+    }
+
+    /**
      * 调用视觉服务进行单目标跟踪。
      *
      * @param videoPath 服务器本地视频绝对路径

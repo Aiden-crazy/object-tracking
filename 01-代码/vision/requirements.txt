@@ -1,9 +1,19 @@
+# -*- coding: utf-8 -*-
 # ============================================================
 # requirements.txt —— 综合实践III《单目标跟踪系统》视觉服务 Python 依赖
 # 作者：【姓名】  学号：【学号】  创建时间：2026-07
 # 安装：pip install -r requirements.txt
+#
+# 注意 1：首行必须保留 `# -*- coding: utf-8 -*-`。
+#         本文件含中文注释且为无 BOM 的 UTF-8，中文 Windows 下 pip 会退化为
+#         GBK(cp936) 解码并抛 UnicodeDecodeError，该声明可让 pip 按 UTF-8 读取。
+# 注意 2：必须安装 opencv-contrib-python（而不是 opencv-python），且不要同时装两个。
+#         本系统核心算法基于 CSRT 跟踪器 cv2.TrackerCSRT_create()。
+#         实测：opencv-python(非 contrib) 4.11 / 4.14 均【不含】 CSRT 与 cv2.legacy，
+#               只有 opencv-contrib-python 才带 legacy tracking 模块（4.11.0.86、4.14.0.94 已实测可用）；
+#               OpenCV 5.0 起 CSRT/KCF 被彻底移除，故上限锁 <5。
 # ============================================================
-opencv-python>=4.8
+opencv-contrib-python>=4.8,<5
 numpy>=1.24
 fastapi>=0.100
 uvicorn>=0.23

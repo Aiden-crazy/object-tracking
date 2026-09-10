@@ -2,42 +2,62 @@
 
   <view class="card">
     <view class="step-title">1. 选择要跟踪的视频</view>
-    <view class="pick-area" bindtap="chooseVideo">
-      <block wx:if="{{!videoPath}}">
-        <text class="pick-icon">＋</text>
-        <text class="pick-text">点击从相册/拍摄选择视频</text>
-      </block>
-      <block wx:else>
-        <video wx:if="{{videoPath}}" src="{{videoPath}}" class="preview"
-               controls object-fit="contain"></video>
-        <text class="file-name">已选：{{videoName}}</text>
-        <text class="change-link">重新选择</text>
-      </block>
+    <view wx:if="{{!videoPath}}" class="pick-area" bindtap="chooseVideo">
+      <text class="pick-icon">＋</text>
+      <text class="pick-text">点击从相册/拍摄选择视频</text>
+    </view>
+    <view wx:else class="picked-row">
+      <text class="file-name">已选：{{videoName}}</text>
+      <text class="change-link" bindtap="chooseVideo">重新选择</text>
     </view>
   </view>
 
-  <view class="card">
-    <view class="step-title">2. 指定跟踪目标</view>
-    <radio-group bindchange="onBoxMode">
-      <label class="radio-row">
-        <radio value="auto" checked="{{boxMode==='auto'}}" color="#2a5298" />
-        <text>自动选择目标（画面中央区域）</text>
-      </label>
-      <label class="radio-row">
-        <radio value="manual" checked="{{boxMode==='manual'}}" color="#2a5298" />
-        <text>手动输入首帧目标框（x,y,宽,高 像素）</text>
-      </label>
-    </radio-group>
-    <view wx:if="{{boxMode==='manual'}}" class="bbox-row">
-      <input class="bbox-input" type="number" placeholder="x" value="{{bx}}" bindinput="onBx" />
-      <input class="bbox-input" type="number" placeholder="y" value="{{by}}" bindinput="onBy" />
-      <input class="bbox-input" type="number" placeholder="宽" value="{{bw}}" bindinput="onBw" />
-      <input class="bbox-input" type="number" placeholder="高" value="{{bh}}" bindinput="onBh" />
+  <view class="card" wx:if="{{preparing}}">
+    <view class="loading-row">
+      <text class="loading-dot">●</text>
+      <text>正在上传并提取首帧，请稍候…</text>
     </view>
+  </view>
+
+  <view class="card" wx:if="{{frameUrl}}">
+    <view class="step-title">2. 在首帧上框选目标</view>
+    <view class="hint">在画面上<b>用手指拖拽</b>即可画出目标框；不画就用自动识别的结果。</view>
+
+    <view id="frameWrap" class="frame-wrap"
+          style="width:{{dispW}}px;height:{{dispH}}px"
+          catchtouchstart="onTouchStart"
+          catchtouchmove="onTouchMove"
+          catchtouchend="onTouchEnd">
+      <image class="frame-img" src="{{frameUrl}}" mode="scaleToFill"
+             style="width:{{dispW}}px;height:{{dispH}}px"></image>
+      <view wx:if="{{boxStyle}}" class="sel-box" style="{{boxStyle}}">
+        <view class="sel-corner tl"></view>
+        <view class="sel-corner tr"></view>
+        <view class="sel-corner bl"></view>
+        <view class="sel-corner br"></view>
+      </view>
+      <view wx:if="{{!boxStyle}}" class="frame-tip">拖动画框</view>
+    </view>
+
+    <view class="box-info">
+      <block wx:if="{{box}}">
+        <text>目标框（视频原始像素）：x={{box.x}} y={{box.y}} w={{box.w}} h={{box.h}}</text>
+        <text wx:if="{{autoUsed}}" class="tag tag-auto">自动识别</text>
+        <text wx:else class="tag tag-manual">手动框选</text>
+      </block>
+      <text wx:else class="warn">尚未确定目标框：直接提交将由后端自动识别运动目标</text>
+    </view>
+
+    <view class="btn-row">
+      <button class="btn-mini" bindtap="useAuto">用自动识别框</button>
+      <button class="btn-mini" bindtap="clearBox" wx:if="{{box}}">清除重画</button>
+    </view>
+
     <view class="tip">提示：目标被短暂遮挡后，系统会自动重新捕捉并继续跟踪。</view>
   </view>
 
-  <button class="btn-primary submit-btn" bindtap="submit" disabled="{{submitting}}">
+  <button class="btn-primary submit-btn" bindtap="submit"
+          disabled="{{submitting || preparing || !taskId}}">
     {{submitting ? '提交中...' : '3. 提交处理'}}
   </button>
 

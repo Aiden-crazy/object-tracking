@@ -67,8 +67,41 @@ public class TaskService {
                 .toString().replace('\\', '/');
     }
 
+    /** 校验并规范化 bbox；空白返回 null（null 表示交给视觉服务自动识别目标） */
+    private String normalizeBbox(String bbox) {
+        if (bbox == null || bbox.isBlank()) {
+            return null;
+        }
+        String[] parts = bbox.trim().split(",");
+        if (parts.length != 4) {
+            throw new BizException("bbox 格式应为 x,y,w,h");
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts) {
+            String v = p.trim();
+            if (!v.matches("\\d+")) {
+                throw new BizException("bbox 必须为数字");
+            }
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(v);
+        }
+        return sb.toString();
+    }
+
     /** 上传并异步处理（上传立即返回任务ID，前端轮询状态） */
     public TrackTask upload(Long userId, MultipartFile file, String bbox) {
+        return upload(userId, file, bbox, false);
+    }
+
+    /**
+     * 上传。
+     * defer=false：老流程，上传即异步跟踪（Web 端、老版小程序用）。
+     * defer=true ：两段式第一步，只落盘建任务(PENDING)、提取首帧图与自动目标框，
+     *              先返回给客户端画框，等用户框完再调 start() 开始跟踪。
+     */
+    public TrackTask upload(Long userId, MultipartFile file, String bbox, boolean defer) {
         if (file == null || file.isEmpty()) {
             throw new BizException("上传文件不能为空");
         }
@@ -83,23 +116,13 @@ public class TaskService {
         if (!ext.matches("\\.(mp4|avi|mov|mkv|jpg|jpeg|png|bmp|webp)")) {
             throw new BizException("仅支持 mp4/avi/mov/mkv 视频与 jpg/png 等图片格式");
         }
-        if (bbox != null && !bbox.isBlank()) {
-            String[] parts = bbox.trim().split(",");
-            if (parts.length != 4) {
-                throw new BizException("bbox 格式应为 x,y,w,h");
-            }
-            for (String p : parts) {
-                if (!p.matches("\\d+")) {
-                    throw new BizException("bbox 必须为数字");
-                }
-            }
-        }
+        String normBbox = normalizeBbox(bbox);
 
         TrackTask task = new TrackTask();
         task.setUserId(userId);
         task.setMediaType(mediaType);
         task.setFileName(name);
-        task.setBbox(bbox);
+        task.setBbox(normBbox);
         try {
             Path origin = Paths.get(storageDir, "origin");
             Files.createDirectories(origin);
@@ -112,7 +135,70 @@ public class TaskService {
             throw new BizException("文件保存失败: " + e.getMessage());
         }
 
+        // 状态由 SQL 里的 'PENDING' 写入，这里同步回填到对象，
+        // 否则接口返回的 JSON 里 status 会是 null（旧版一直如此）
+        task.setStatus("PENDING");
+
         final Long taskId = task.getId();
+        if (defer) {
+            prepareFrame(task);
+        } else {
+            executor.submit(() -> process(taskId));
+        }
+        return task;
+    }
+
+    /**
+     * 两段式第一步的内部实现：调用视觉服务提取首帧并自动识别目标框。
+     * 首帧图片直接由视觉服务写到本服务的 uploads/frames/ 下，便于 /files/** 访问。
+     * 失败时删除刚建的任务，避免留下只能干等的 PENDING 记录。
+     */
+    private void prepareFrame(TrackTask task) {
+        try {
+            Path frames = Paths.get(storageDir, "frames");
+            Files.createDirectories(frames);
+            Path dst = frames.resolve(task.getId() + ".jpg").toAbsolutePath();
+            Map<String, String> r = visionClient.prepare(
+                    task.getFilePath(), dst.toString());
+            task.setFrameUrl(webUrlOf(dst));
+            task.setImgWidth(parseIntSafe(r.get("width")));
+            task.setImgHeight(parseIntSafe(r.get("height")));
+            String ab = r.get("autoBbox");
+            task.setAutoBbox(ab == null || ab.isBlank() ? null : ab);
+            log.info("任务 {} 首帧就绪: {} ({}x{}), 自动框={}",
+                    task.getId(), task.getFrameUrl(), task.getImgWidth(),
+                    task.getImgHeight(), task.getAutoBbox());
+        } catch (Exception e) {
+            log.error("任务 {} 提取首帧失败", task.getId(), e);
+            try {
+                taskMapper.deleteById(task.getId());
+            } catch (Exception ignore) {
+                // 清理失败不影响主流程报错
+            }
+            throw new BizException(e.getMessage() == null ? "首帧提取失败" : e.getMessage());
+        }
+    }
+
+    private Integer parseIntSafe(String s) {
+        try {
+            return Integer.valueOf(s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 两段式第二步：带上用户手指框选的目标框开始处理（bbox 为空则用自动识别结果） */
+    public TrackTask start(Long taskId, String bbox) {
+        TrackTask task = taskMapper.findById(taskId);
+        if (task == null) {
+            throw new BizException("任务不存在");
+        }
+        if (!"PENDING".equals(task.getStatus())) {
+            throw new BizException("该任务已开始处理或已结束");
+        }
+        String norm = normalizeBbox(bbox);
+        taskMapper.updateBbox(taskId, norm);
+        task.setBbox(norm);
         executor.submit(() -> process(taskId));
         return task;
     }

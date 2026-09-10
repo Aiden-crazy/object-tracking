@@ -32,4 +32,13 @@ public class TrackTask {
     private LocalDateTime finishTime;
     /** 非表字段：冗余用户名（列表展示用） */
     private String username;
+
+    // ---------- 以下均为非表字段：仅用于「上传首帧→画框→开始处理」两段式流程的返回 ----------
+    /** 首帧图片的 Web 访问路径，如 /files/frames/12.jpg */
+    private String frameUrl;
+    /** 视频原始像素宽/高，客户端据此把手势坐标换算回原始像素 */
+    private Integer imgWidth;
+    private Integer imgHeight;
+    /** 后端自动识别的建议目标框 "x,y,w,h"（运动检测结果，可能为空） */
+    private String autoBbox;
 }

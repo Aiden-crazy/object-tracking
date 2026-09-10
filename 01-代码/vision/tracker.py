@@ -66,6 +66,202 @@ VERIFY_EVERY = 5        # 每 N 帧做一次直方图质量校验
 MAX_TRAIL = 60          # 轨迹拖尾点数
 
 
+# ---------------- 首帧提取 / 自动目标检测 ----------------
+
+def imwrite_unicode(path, image, jpeg_quality=92):
+    """把图片写到 path，返回是否成功。
+
+    ⚠️ 不能用 cv2.imwrite：它在 Windows 上走 ANSI 文件接口，路径含中文等非 ASCII
+    字符时会**静默失败**（返回 False 且不抛异常）。本工程目录名就是中文，
+    所以必须走 imencode 编码到内存 + Python 原生 open() 写文件。
+    （VideoWriter / VideoCapture 走 FFmpeg，支持 Unicode 路径，无此问题。）
+    """
+    ext = os.path.splitext(path)[1].lower() or ".jpg"
+    params = []
+    if ext in (".jpg", ".jpeg"):
+        params = [int(cv2.IMWRITE_JPEG_QUALITY), int(jpeg_quality)]
+    elif ext == ".png":
+        params = [int(cv2.IMWRITE_PNG_COMPRESSION), 3]
+    ok, buf = cv2.imencode(ext, image, params)
+    if not ok:
+        return False
+    with open(path, "wb") as f:
+        f.write(buf.tobytes())
+    return True
+
+
+def extract_first_frame(video_path, out_image):
+    """提取视频首帧保存为图片，返回 (图片路径, 宽, 高)。
+
+    注意：这里固定取**第 0 帧**，与 process_video() 初始化跟踪器的帧保持一致；
+    若取别的帧，用户在该图上画的框就会和跟踪起点错位。
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError("无法打开视频: " + video_path)
+    ok, frame = cap.read()
+    cap.release()
+    if not ok:
+        raise IOError("视频为空，读不到首帧: " + video_path)
+    if not out_image:
+        base, _ = os.path.splitext(video_path)
+        out_image = base + "_first.jpg"
+    d = os.path.dirname(os.path.abspath(out_image))
+    if d:
+        os.makedirs(d, exist_ok=True)
+    if not imwrite_unicode(out_image, frame, 92):
+        raise IOError("首帧图片写入失败: " + out_image)
+    h, w = frame.shape[:2]
+    return os.path.abspath(out_image), w, h
+
+
+def auto_detect_bbox(video_path, sample_frames=40, max_side=320):
+    """自动定位目标：基于"中值背景差"的运动目标检测。
+
+    旧实现是"取画面正中 20%"——只要画面中央有静止的 UI 元素（例如播放器的
+    暂停键），就必然框错。这里改成真正的检测：
+
+      1) 均匀采样若干帧，取**逐像素中值**作为背景估计（能自动滤掉运动目标）；
+      2) 用第 0 帧减去背景，得到"目标在前景上的位置"；
+      3) Otsu 阈值 + 形态学去噪，取最大连通域外接矩形。
+
+    因为跟踪器是在第 0 帧初始化的，所以检测结果也取第 0 帧上的位置。
+    检测失败（目标静止、镜头整体晃动、画面过暗等）返回 None，由调用方回退。
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+    try:
+        w0 = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h0 = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if w0 <= 0 or h0 <= 0:
+            return None
+        scale = min(1.0, float(max_side) / max(w0, h0))
+        tw, th = max(32, int(w0 * scale)), max(32, int(h0 * scale))
+
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        # 采样步长：视频很长时均匀跳帧，兼顾速度与背景估计质量
+        step = max(1, total // sample_frames) if total > sample_frames else 1
+
+        first_gray = None
+        samples = []
+        idx = 0
+        while len(samples) < sample_frames:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            if idx % step == 0:
+                small = cv2.resize(frame, (tw, th), interpolation=cv2.INTER_AREA)
+                g = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY),
+                                     (5, 5), 0)
+                if first_gray is None:
+                    first_gray = g
+                samples.append(g)
+            idx += 1
+
+        if first_gray is None or len(samples) < 3:
+            return None
+
+        bg = np.median(np.stack(samples, axis=0), axis=0).astype(np.uint8)
+        diff = cv2.absdiff(first_gray, bg)
+        # Otsu 自适应阈值：不同视频对比度差异很大，固定阈值不稳
+        _, mask = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        mask = cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=2)
+
+        cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not cnts:
+            return None
+        c = max(cnts, key=cv2.contourArea)
+        area = cv2.contourArea(c)
+        frame_area = float(tw * th)
+        # 太小 => 噪声；太大 => 镜头整体晃动/全屏变化，都不是可靠的单目标
+        if area < frame_area * 0.0008 or area > frame_area * 0.85:
+            return None
+
+        x, y, bw, bh = cv2.boundingRect(c)
+        inv = 1.0 / scale
+        x, y = int(x * inv), int(y * inv)
+        bw, bh = int(bw * inv), int(bh * inv)
+        # 裁到画面内，并保证最小尺寸（跟踪器要求 >=5 像素）
+        x = max(0, min(x, w0 - 1))
+        y = max(0, min(y, h0 - 1))
+        bw = max(8, min(bw, w0 - x))
+        bh = max(8, min(bh, h0 - y))
+        return (x, y, bw, bh)
+    except Exception as e:  # noqa: BLE001 —— 自动检测失败不应中断流程
+        print("[警告] 自动目标检测失败，回退中央区域:", e)
+        return None
+    finally:
+        cap.release()
+
+
+def center_bbox(width, height, ratio=0.2):
+    """回退方案：画面中央区域（仅在自动检测失败时使用）。"""
+    bw = max(20, int(width * ratio))
+    bh = max(20, int(height * ratio))
+    return ((width - bw) // 2, (height - bh) // 2, bw, bh)
+
+
+# ---------------- 跟踪器创建（跨 OpenCV 版本兼容） ----------------
+# OpenCV 4.5.1+ : cv2.TrackerCSRT_create()      —— 主模块工厂函数
+# OpenCV 4.5.4+ : cv2.legacy.TrackerCSRT_create()
+# OpenCV 5.x    : 已彻底移除 CSRT/KCF（且无 cv2.legacy），仅保留
+#                 MIL/DaSiamRPN/Nano/Vit；此时自动降级为 MIL 并给出明确提示，
+#                 保证流程仍可跑通（算法精度下降，建议按 requirements.txt 装回 4.x）。
+_TRACKER_FACTORIES = {
+    "CSRT": ["TrackerCSRT_create", "TrackerCSRT", "legacy.TrackerCSRT_create"],
+    "KCF": ["TrackerKCF_create", "TrackerKCF", "legacy.TrackerKCF_create"],
+}
+# OpenCV 5.x 兜底跟踪器（按优先级尝试）
+_TRACKER_FALLBACKS = ["TrackerMIL", "TrackerNano", "TrackerVit"]
+
+
+def _resolve_attr(dotted):
+    """按 'legacy.TrackerCSRT_create' 形式逐级取属性；任一级不存在返回 None。"""
+    obj = cv2
+    for part in dotted.split("."):
+        obj = getattr(obj, part, None)
+        if obj is None:
+            return None
+    return obj
+
+
+def create_tracker(backend="CSRT"):
+    """创建单目标跟踪器，返回 (tracker, 实际使用的后端名)。
+
+    兼容 OpenCV 4.x 与 5.x；返回对象保证具备 init(img, bbox) 与 update(img)。
+    OpenCV 4.x 中这些名字是工厂函数，5.x 中是类（需再调 .create()），故统一处理。
+    """
+    want = (backend or "CSRT").upper()
+    candidates = _TRACKER_FACTORIES.get(want, _TRACKER_FACTORIES["CSRT"])
+    for name in candidates:
+        obj = _resolve_attr(name)
+        if obj is None:
+            continue
+        try:
+            factory = obj.create if isinstance(obj, type) else obj
+            return factory(), want
+        except Exception:  # noqa: BLE001 —— 换下一个候选
+            continue
+    for name in _TRACKER_FALLBACKS:
+        obj = _resolve_attr(name)
+        if obj is None:
+            continue
+        try:
+            factory = obj.create if isinstance(obj, type) else obj
+            tracker = factory()
+            print("[警告] 当前 OpenCV %s 不含 %s 跟踪器，已降级为 %s（精度下降）。"
+                  "建议执行: pip install \"opencv-python>=4.8,<5\""
+                  % (cv2.__version__, want, name))
+            return tracker, name
+        except Exception:  # noqa: BLE001
+            continue
+    raise RuntimeError(
+        "无法创建跟踪器：当前 OpenCV %s 缺少 CSRT/KCF 且无可用替代跟踪器。"
+        "请执行 pip install \"opencv-python>=4.8,<5\"" % cv2.__version__)
+
+
 class TrackerState:
     """跟踪器状态机：INIT -> TRACKING <-> SEARCHING"""
     INIT = "INIT"
@@ -89,7 +285,8 @@ class SingleObjectTracker:
         self.stats = {
             "total_frames": 0, "tracking_frames": 0, "searching_frames": 0,
             "lost_events": 0, "recoveries": 0, "final_state": "",
-            "fps": 0.0, "tracker": backend,
+            "fps": 0.0, "tracker": backend, "tracker_requested": backend,
+            "opencv": cv2.__version__,
         }
         self._lost_counter = 0
         self._search_hits = 0
@@ -135,10 +332,9 @@ class SingleObjectTracker:
         return float(cv2.compareHist(self._ref_hist, hist, cv2.HISTCMP_CORREL))
 
     def _new_tracker(self, frame, bbox):
-        if self.backend.upper() == "KCF":
-            self._tracker = cv2.TrackerKCF_create()
-        else:
-            self._tracker = cv2.TrackerCSRT_create()
+        # 兼容 OpenCV 4.x/5.x；stats["tracker"] 记录实际生效的后端
+        self._tracker, used = create_tracker(self.backend)
+        self.stats["tracker"] = used
         self._tracker.init(frame, tuple(bbox))
 
     # ------------------------------------------------------------
@@ -242,7 +438,11 @@ class SingleObjectTracker:
     # ------------------------------------------------------------
     def process_video(self, video_path, bbox, out_video=None, log_path=None,
                       max_frames=None, show=False):
-        """对视频文件执行完整跟踪，返回统计信息。bbox=None 时自动取画面中央区域。"""
+        """对视频文件执行完整跟踪，返回统计信息。
+
+        bbox=None 时自动识别目标：先用 auto_detect_bbox() 做运动目标检测，
+        检测失败才回退到画面中央区域（不再无条件取中央）。
+        """
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise IOError("无法打开视频: " + video_path)
@@ -251,9 +451,20 @@ class SingleObjectTracker:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        if bbox is None:  # 自动选目标：中央 20% 区域
-            bw, bh = max(20, int(width * 0.2)), max(20, int(height * 0.2))
-            bbox = ((width - bw) // 2, (height - bh) // 2, bw, bh)
+        auto_used = None
+        if bbox is None:
+            auto_used = auto_detect_bbox(video_path)
+            if auto_used is None:
+                auto_used = center_bbox(width, height)
+                print("[提示] 未能自动识别运动目标，回退为画面中央区域:", auto_used)
+            else:
+                print("[提示] 自动识别到目标框:", auto_used)
+            bbox = auto_used
+
+        # 记录最终采用的目标框来源，便于排查"框错了目标"这类问题
+        self.stats["auto_bbox"] = (",".join(map(str, auto_used))
+                                   if auto_used else None)
+        self.stats["bbox_source"] = ("auto" if auto_used else "manual")
 
         writer = None
         if out_video:

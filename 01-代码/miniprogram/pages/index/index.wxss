@@ -1,22 +1,77 @@
-/* pages/index/index.wxss —— 上传页样式 */
+/* pages/index/index.wxss —— 上传页样式（首帧框选版） */
 .page { padding-bottom: 60rpx; }
 .step-title { font-weight: bold; margin-bottom: 18rpx; font-size: 30rpx; }
+
 .pick-area {
   border: 2rpx dashed #b6c3e0; border-radius: 14rpx; padding: 40rpx 20rpx;
   display: flex; flex-direction: column; align-items: center; color: #6a7ba5;
 }
 .pick-icon { font-size: 64rpx; color: #2a5298; line-height: 1; }
 .pick-text { margin-top: 12rpx; font-size: 26rpx; }
-.preview { width: 100%; height: 340rpx; border-radius: 10rpx; }
-.file-name { margin-top: 14rpx; font-size: 24rpx; color: #555; }
-.change-link { margin-top: 8rpx; color: #2a5298; font-size: 24rpx; }
-.radio-row {
-  display: flex; align-items: center; margin-bottom: 16rpx; font-size: 27rpx;
+
+.picked-row { display: flex; align-items: center; justify-content: space-between; }
+.file-name { font-size: 25rpx; color: #555; }
+.change-link { color: #2a5298; font-size: 25rpx; padding: 8rpx 4rpx; }
+
+.loading-row {
+  display: flex; align-items: center; color: #2a5298; font-size: 27rpx;
 }
-.bbox-row { display: flex; gap: 12rpx; margin-top: 8rpx; }
-.bbox-input {
-  flex: 1; background: #f7f8fc; border: 1rpx solid #e3e6ee;
-  border-radius: 10rpx; padding: 12rpx; text-align: center;
+.loading-dot { margin-right: 12rpx; animation: blink 1s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+.hint { color: #7a86a3; font-size: 25rpx; line-height: 1.6; margin-bottom: 18rpx; }
+.hint b { color: #2a5298; }
+
+/* ---------- 首帧 + 框选区域 ---------- */
+/* 画框容器：尺寸由 JS 按视频宽高比算出，保证图片不变形、坐标换算精确 */
+.frame-wrap {
+  position: relative;
+  margin: 0 auto;
+  background: #000;
+  border-radius: 12rpx;
+  overflow: hidden;
 }
+.frame-img { display: block; }
+.sel-box {
+  position: absolute;
+  border: 3rpx solid #ff6b35;
+  background: rgba(255, 107, 53, 0.18);
+  box-sizing: border-box;
+}
+/* 四角把手，让框看起来是可拖拽的目标框 */
+.sel-corner {
+  position: absolute; width: 16rpx; height: 16rpx;
+  background: #ff6b35; border-radius: 3rpx;
+}
+.sel-corner.tl { left: -8rpx; top: -8rpx; }
+.sel-corner.tr { right: -8rpx; top: -8rpx; }
+.sel-corner.bl { left: -8rpx; bottom: -8rpx; }
+.sel-corner.br { right: -8rpx; bottom: -8rpx; }
+
+.frame-tip {
+  position: absolute; left: 0; right: 0; bottom: 16rpx;
+  text-align: center; color: #fff; font-size: 24rpx;
+  text-shadow: 0 0 8rpx rgba(0, 0, 0, 0.8);
+}
+
+/* ---------- 框信息 ---------- */
+.box-info {
+  margin-top: 16rpx; font-size: 24rpx; color: #555;
+  display: flex; align-items: center; flex-wrap: wrap;
+}
+.tag {
+  margin-left: 14rpx; padding: 2rpx 14rpx; border-radius: 999rpx; font-size: 22rpx;
+}
+.tag-auto { background: #e8f8ee; color: #27ae60; }
+.tag-manual { background: #eef3ff; color: #2a5298; }
+.warn { color: #e67e22; }
+
+.btn-row { display: flex; gap: 16rpx; margin-top: 18rpx; }
+.btn-mini {
+  flex: 1; font-size: 25rpx; line-height: 2.4; padding: 0;
+  background: #f2f5fb; color: #2a5298; border-radius: 10rpx;
+}
+.btn-mini::after { border: none; }
+
 .tip { margin-top: 16rpx; color: #999; font-size: 24rpx; }
 .submit-btn { margin: 30rpx 20rpx 0; }

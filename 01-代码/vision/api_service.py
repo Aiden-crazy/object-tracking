@@ -23,13 +23,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
-from tracker import SingleObjectTracker
+from tracker import SingleObjectTracker, auto_detect_bbox, extract_first_frame
 
 app = FastAPI(title="单目标跟踪视觉处理服务", version="1.0")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-OUT_DIR = os.path.abspath("../../demo/vision_out")
+OUT_DIR = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "demo", "vision_out"))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -98,6 +99,36 @@ def _do_track(video_path: str, bbox_str: str | None, out_dir: str) -> dict:
     return {"code": 0, "task_id": task_id, "stats": stats,
             "result_video": os.path.abspath(out_video),
             "log_file": os.path.abspath(log_path)}
+
+
+@app.post("/api/v1/prepare")
+def prepare(payload: dict):
+    """首帧提取 + 自动目标识别（供小程序「先看首帧、再手指画框」流程使用）。
+
+    同时返回：
+      image     : 首帧图片绝对路径（与跟踪初始化的第 0 帧严格一致）
+      width/height : 视频原始像素尺寸，客户端据此把手指坐标换算回原始像素
+      auto_bbox : 运动检测给出的建议目标框 "x,y,w,h"，无可靠结果时为 null
+    """
+    video_path = payload.get("video_path")
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(404, "video_path 不存在: " + str(video_path))
+
+    try:
+        image, width, height = extract_first_frame(video_path, payload.get("out_image"))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, "首帧提取失败: %s" % e)
+
+    auto_bbox = None
+    try:
+        box = auto_detect_bbox(video_path)
+        if box:
+            auto_bbox = ",".join(str(int(v)) for v in box)
+    except Exception as e:  # noqa: BLE001 —— 自动识别失败不影响首帧可用
+        print("[警告] 自动目标检测异常:", e)
+
+    return {"code": 0, "image": image, "width": width, "height": height,
+            "auto_bbox": auto_bbox}
 
 
 @app.post("/api/v1/track")

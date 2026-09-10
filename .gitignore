@@ -20,6 +20,16 @@ demo/.edge*/
 __pycache__/
 *.pyc
 
+# --- 构建工具缓存 ---
+# build_jar_nomaven.ps1 在无 Maven 环境重打包 jar 时会用到的较新 Lombok，
+# 缺失时脚本会自动下载，不必入库（工程本身已附带构建好的 jar）。
+tools/lombok/
+
+# --- 微信开发者工具 ---
+# project.private.config.json 是「每位开发者本地」的私有配置（由开发者工具自动生成，
+# 记录本机调试设置等），官方惯例是不入库，避免互相覆盖。
+01-代码/miniprogram/project.private.config.json
+
 # --- IDE / OS ---
 .idea/
 .vscode/

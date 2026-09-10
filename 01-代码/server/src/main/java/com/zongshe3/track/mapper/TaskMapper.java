@@ -22,6 +22,10 @@ public interface TaskMapper {
     @Update("UPDATE t_task SET status='PROCESSING' WHERE id=#{id} AND status='PENDING'")
     int markProcessing(Long id);
 
+    /** 两段式流程：用户画完框后再回填 bbox（仅允许未开始的任务） */
+    @Update("UPDATE t_task SET bbox=#{bbox} WHERE id=#{id} AND status='PENDING'")
+    int updateBbox(@Param("id") Long id, @Param("bbox") String bbox);
+
     @Update("UPDATE t_task SET status='SUCCESS', result_path=#{resultPath}, " +
             "log_path=#{logPath}, stats_json=#{statsJson}, finish_time=NOW() " +
             "WHERE id=#{id}")
