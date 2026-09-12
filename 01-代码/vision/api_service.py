@@ -4,11 +4,16 @@ api_service.py  —— 综合实践III《单目标跟踪系统》视觉处理 We
 作者：【姓名】  学号：【学号】  创建时间：2026-07
 功能描述：
     将视觉核心模块封装为 HTTP 服务（服务器端视觉处理模块），供 Web 后端调用：
-      1) POST /api/v1/track        : multipart 上传视频文件 + 可选 bbox，返回处理结果
-      2) POST /api/v1/track_local  : 传入服务器本地视频路径（同机部署时由 Java 后端调用），
+      1) POST /api/v1/track        : multipart 上传视频/图片文件 + 可选 bbox，返回处理结果
+      2) POST /api/v1/track_local  : 传入服务器本地视频/图片路径（同机部署时由 Java 后端调用），
                                      避免大文件二次传输
-      3) GET  /api/v1/health       : 健康检查
-    处理完成的结果视频与日志保存在 out_dir 下，返回相对/绝对路径给调用方。
+      3) POST /api/v1/prepare      : 提取首帧图片 + 返回视频原始尺寸与自动识别目标框，
+                                     供小程序"先看首帧、再手指画框"的两段式流程使用
+      4) GET  /api/v1/health       : 健康检查
+      5) GET  /api/v1/file         : 读取结果文件（调试用）
+    素材支持视频与图片两种（对应任务书"用户提交要处理的图片或者视频"）：
+    视频输出 *_tracked.mp4，图片输出 *_tracked.jpg，统计口径一致。
+    处理完成的结果与日志保存在 out_dir 下，返回绝对路径给调用方。
 运行方式：
     python api_service.py --host 127.0.0.1 --port 9000 --out_dir ../../demo/vision_out
 """
@@ -23,7 +28,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
-from tracker import SingleObjectTracker, auto_detect_bbox, extract_first_frame
+from tracker import (SingleObjectTracker, auto_detect_bbox, center_bbox,
+                     extract_first_frame, is_image_path)
 
 app = FastAPI(title="单目标跟踪视觉处理服务", version="1.0")
 app.add_middleware(
@@ -63,8 +69,9 @@ def index():
  </p>
  <ul>
    <li><code>GET  /api/v1/health</code> —— 健康检查</li>
-   <li><code>POST /api/v1/track_local</code> —— 传入本地视频路径+bbox，执行单目标跟踪（Web后端调用）</li>
-   <li><code>POST /api/v1/track</code> —— multipart 上传视频直接跟踪</li>
+   <li><code>POST /api/v1/prepare</code> —— 提取首帧 + 原始尺寸 + 自动识别目标框（小程序框选流程）</li>
+   <li><code>POST /api/v1/track_local</code> —— 传入本地视频/图片路径+bbox，执行单目标跟踪（Web后端调用）</li>
+   <li><code>POST /api/v1/track</code> —— multipart 上传视频/图片直接处理</li>
  </ul>
  <p style="color:#888;font-size:13px">单目标跟踪系统 · 综合实践III 课程设计</p>
 </div></body></html>"""
@@ -81,6 +88,7 @@ def health():
 
 
 def _do_track(video_path: str, bbox_str: str | None, out_dir: str) -> dict:
+    """统一处理入口：按素材类型分派到视频跟踪 / 图片定位，返回结果路径与统计。"""
     task_id = uuid.uuid4().hex[:12]
     os.makedirs(out_dir, exist_ok=True)
     bbox = None
@@ -88,15 +96,24 @@ def _do_track(video_path: str, bbox_str: str | None, out_dir: str) -> dict:
         bbox = [int(v) for v in bbox_str.replace(" ", "").split(",")]
         if len(bbox) != 4:
             raise HTTPException(400, "bbox 格式应为 x,y,w,h")
-    out_video = os.path.join(out_dir, f"{task_id}_tracked.mp4")
+    image_mode = is_image_path(video_path)
+    suffix = ".jpg" if image_mode else ".mp4"
+    out_video = os.path.join(out_dir, f"{task_id}_tracked{suffix}")
     log_path = os.path.join(out_dir, f"{task_id}_log.json")
     try:
         st = SingleObjectTracker(backend="CSRT")
-        stats = st.process_video(video_path, bbox,
-                                 out_video=out_video, log_path=log_path)
+        if image_mode:
+            stats = st.process_image(video_path, bbox,
+                                     out_image=out_video, log_path=log_path)
+        else:
+            stats = st.process_video(video_path, bbox,
+                                     out_video=out_video, log_path=log_path)
+    except HTTPException:
+        raise
     except Exception as e:  # noqa
         raise HTTPException(500, f"视觉处理失败: {e}")
     return {"code": 0, "task_id": task_id, "stats": stats,
+            "media_type": "IMAGE" if image_mode else "VIDEO",
             "result_video": os.path.abspath(out_video),
             "log_file": os.path.abspath(log_path)}
 
@@ -120,12 +137,17 @@ def prepare(payload: dict):
         raise HTTPException(500, "首帧提取失败: %s" % e)
 
     auto_bbox = None
-    try:
-        box = auto_detect_bbox(video_path)
-        if box:
-            auto_bbox = ",".join(str(int(v)) for v in box)
-    except Exception as e:  # noqa: BLE001 —— 自动识别失败不影响首帧可用
-        print("[警告] 自动目标检测异常:", e)
+    if is_image_path(video_path):
+        # 图片素材没有帧间运动，无法做运动检测：自动目标回退为画面中央区域
+        auto_bbox = ",".join(str(int(v))
+                             for v in center_bbox(width, height))
+    else:
+        try:
+            box = auto_detect_bbox(video_path)
+            if box:
+                auto_bbox = ",".join(str(int(v)) for v in box)
+        except Exception as e:  # noqa: BLE001 —— 自动识别失败不影响首帧可用
+            print("[警告] 自动目标检测异常:", e)
 
     return {"code": 0, "image": image, "width": width, "height": height,
             "auto_bbox": auto_bbox}

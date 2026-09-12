@@ -1,22 +1,26 @@
 /* pages/index/index.js —— 上传跟踪页逻辑
  *
- * 交互：选视频 → 后端提取首帧 → 在首帧图上手指拖拽画框 → 提交跟踪
+ * 交互：选视频/图片 → 后端提取首帧 → 在首帧图上手指拖拽画框 → 提交跟踪
  * 说明：小程序无法把 <video> 组件的画面画进 canvas，做不到像 Web 端那样
  *       在前端取帧；因此首帧由后端提取（/api/task/upload?defer=true 返回 frameUrl），
- *       前端只负责在图片上画框并把坐标换算回视频原始像素。
+ *       前端只负责在图片上画框并把坐标换算回原始像素。
+ *       任务书要求"用户提交要处理的图片或者视频"，因此两种素材都支持：
+ *       图片素材本身即首帧，同样走"后端提首帧 + 前端画框"这条统一链路。
  */
 const app = getApp();
 const { request, upload, getUrl } = require('../../utils/request');
 
 const MIN_BOX = 8;        // 显示尺寸下的最小有效框（px），小于视为误触
+const IMG_RE = /\.(jpg|jpeg|png|bmp|webp)$/i;
 
 Page({
   data: {
     videoPath: '', videoName: '',
+    isImage: false,          // 本次素材是否为图片
     preparing: false,        // 正在上传 + 提取首帧
     taskId: null,
     frameUrl: '',            // 首帧图完整 URL
-    imgW: 0, imgH: 0,        // 视频原始像素尺寸
+    imgW: 0, imgH: 0,        // 素材原始像素尺寸
     dispW: 0, dispH: 0,      // 首帧在页面上的显示尺寸(px)
     box: null,               // 当前目标框（原始像素）
     boxStyle: '',            // 框的样式（显示坐标）
@@ -35,17 +39,20 @@ Page({
     this.refreshRect();
   },
 
-  /* ---------------- 1. 选视频 ---------------- */
+  /* ---------------- 1. 选素材（视频或图片） ---------------- */
   chooseVideo() {
     wx.chooseMedia({
       count: 1,
-      mediaType: ['video'],
+      mediaType: ['video', 'image'],
       sourceType: ['album', 'camera'],
       success: (res) => {
         const f = res.tempFiles[0];
+        const isImage = f.fileType === 'image' ||
+          IMG_RE.test(String(f.tempFilePath || ''));
         this.setData({
           videoPath: f.tempFilePath,
-          videoName: (f.fileName || '视频').substring(0, 40)
+          isImage: isImage,
+          videoName: (f.fileName || (isImage ? '图片' : '视频')).substring(0, 40)
         }, () => this.prepare());
       }
     });
@@ -70,7 +77,7 @@ Page({
       const win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       let dispW = Math.floor(win.windowWidth - 48);        // 两侧各留 24px
       let dispH = Math.max(1, Math.round(dispW * task.imgHeight / task.imgWidth));
-      // 竖屏视频（手机拍摄常见 9:16）按宽度算会超出屏幕，改为按高度反推宽度
+      // 竖屏素材（手机拍摄常见 9:16）按宽度算会超出屏幕，改为按高度反推宽度
       const maxH = Math.floor(win.windowHeight * 0.55);
       if (dispH > maxH) {
         dispH = maxH;

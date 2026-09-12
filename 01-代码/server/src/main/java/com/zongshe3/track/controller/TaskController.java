@@ -2,9 +2,11 @@
  * TaskController.java —— 任务上传与查询接口（小程序端）
  * 作者：【姓名】  学号：【学号】  创建时间：2026-07
  * 功能描述：
- *   POST /api/task/upload  上传视频/图片 + 可选 bbox，异步触发视觉处理；
- *   GET  /api/task/{id}    查询任务状态（前端轮询）；
- *   GET  /api/task/list    我的任务记录（分页）。
+ *   POST /api/task/upload      上传视频/图片 + 可选 bbox，异步触发视觉处理；
+ *                              defer=true 时只提首帧（两段式第一步，供框选）
+ *   POST /api/task/{id}/start  两段式第二步：带框选结果开始处理
+ *   GET  /api/task/{id}        查询任务状态（前端轮询，含归属校验）
+ *   GET  /api/task/list        我的任务记录（分页）。
  */
 package com.zongshe3.track.controller;
 
@@ -46,14 +48,18 @@ public class TaskController {
      */
     @PostMapping("/{id}/start")
     public Result<TrackTask> start(@PathVariable Long id,
+                                   @RequestAttribute("uid") Long uid,
+                                   @RequestAttribute("role") String role,
                                    @RequestBody(required = false) Map<String, String> body) {
         String bbox = body == null ? null : body.get("bbox");
-        return Result.ok(taskService.start(id, bbox));
+        return Result.ok(taskService.start(id, bbox, uid, role));
     }
 
     @GetMapping("/{id}")
-    public Result<TrackTask> get(@PathVariable Long id) {
-        return Result.ok(taskService.getTask(id));
+    public Result<TrackTask> get(@PathVariable Long id,
+                                 @RequestAttribute("uid") Long uid,
+                                 @RequestAttribute("role") String role) {
+        return Result.ok(taskService.getTask(id, uid, role));
     }
 
     @GetMapping("/list")

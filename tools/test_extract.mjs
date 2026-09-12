@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = 9227;
 const USER_DIR = path.resolve(__dirname, '../demo/.edge-test');
-const VIDEO = 'C:/Users/Administrator/Desktop/C/综设3-单目标跟踪/demo/demo_ball_track.mp4';
+const VIDEO = path.resolve(__dirname, '../demo/demo_ball_track.mp4');   // 仓库内相对定位，换电脑/换目录都不受影响
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function launch() {

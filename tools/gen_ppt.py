@@ -168,9 +168,9 @@ def slide_bg_goal(prs, idx):
         ("系统流程：小程序登录 → 提交视频/图片 → 服务端视觉处理 → 结果回存 → Web 端管理", 17, False, DARK),
         ("我们选择视觉场景：单目标跟踪（Python + OpenCV）", 17, True, GREEN),
         ("核心目标：", 17, True, ORANGE),
-        ("① 用户框选目标后持续跟踪并绘制轨迹；", 16, False, DARK),
+        ("① 用户在首帧画面上框选目标后持续跟踪并绘制轨迹（也可用自动识别目标）；", 16, False, DARK),
         ("② 目标被短暂遮挡后再次出现时，能自动重新捕捉并继续跟踪（遮挡重检测）；", 16, False, DARK),
-        ("③ 跟踪结果（结果视频/轨迹/统计）可存储、查询、回看；管理员可管理用户与任务；", 16, False, DARK),
+        ("③ 跟踪结果（结果视频/结果图片/轨迹/统计）可存储、查询、回看；管理员可管理用户与任务；", 16, False, DARK),
         ("④ 遵循软件工程规范：界面展示、命名注释规范、Git 团队协作、文档与测试齐全。", 16, False, DARK),
     ], size=17)
 
@@ -179,7 +179,7 @@ def slide_arch(prs, idx):
     s = blank(prs)
     header(s, "02 系统总体架构", idx)
     body_lines(s, [
-        ("四层架构：表现层（小程序/Web管理端）— 业务服务层（Spring Boot）— 视觉处理层（Python+OpenCV）— 数据层（MySQL+文件）", 17, True, BLUE),
+        ("四层架构：表现层（小程序/Web管理端）— 业务服务层（Spring Boot）— 视觉处理层（Python+OpenCV）— 数据层（数据库+文件）", 17, True, BLUE),
         ("视觉处理独立成服务，通过 REST 与后端解耦，便于算法替换与升级", 15, False, GRAY),
     ], size=16, gap=6)
     img(s, FIG + "fig1_1_系统总体架构图.png", 3.0, 5.2, w=27.8)
@@ -195,8 +195,8 @@ def slide_flow(prs, idx):
         ("用户端", "微信原生小程序（wx.uploadFile 上传）"),
         ("管理端", "原生单页零构建，随静态资源发布"),
         ("后端", "Spring Boot 3 + MyBatis + JWT + BCrypt"),
-        ("视觉", "OpenCV CSRT + ORB/HSV 重检测 + FastAPI"),
-        ("数据", "MySQL 8.0 + 磁盘文件（/files 映射）"),
+        ("视觉", "OpenCV CSRT + 多尺度模板匹配/HSV 重检测 + FastAPI"),
+        ("数据", "内嵌 H2（MySQL 兼容，免安装；可切 MySQL 8.0）+ 磁盘文件（/files 映射）"),
         ("协作", "Git 版本控制"),
     ]:
         para(tf, t[0] + "：" + t[1], size=14.5, color=DARK, space_after=10)
@@ -209,10 +209,10 @@ def slide_requirement(prs, idx):
     tf = add_tb(s, 18.8, 3.4, 14.0, 13)
     para(tf, "功能需求（F-01~F-10）", size=18, bold=True, color=BLUE, first=True, space_after=10)
     for t in [
-        "普通用户：注册 / 登录 / 改密 / 上传视频 / 结果回看 / 历史记录",
+        "普通用户：注册 / 登录 / 改密 / 上传视频或图片 / 首帧框选 / 结果回看 / 历史记录",
         "管理员：用户查询·新增·删除·重置密码 / 任务管理 / 系统统计",
-        "视觉处理：CSRT 跟踪 + 遮挡检测 + 自动重检测恢复",
-        "非功能：实时性(≥25FPS)、BCrypt+JWT 安全、异步任务状态机、失败留痕",
+        "视觉处理：CSRT 跟踪 + 运动目标自动识别 + 遮挡检测 + 自动重检测恢复",
+        "非功能：实时性(≥25FPS)、BCrypt+JWT 安全、任务归属校验防越权、异步任务状态机、失败留痕",
     ]:
         para(tf, t, size=14.5, color=DARK, bullet=True, space_after=12)
 
@@ -224,11 +224,11 @@ def slide_vision_design(prs, idx):
     tf = add_tb(s, 21.6, 3.4, 11.4, 14)
     para(tf, "设计要点", size=18, bold=True, color=BLUE, first=True, space_after=10)
     for t in [
-        "初始化：目标框 → 参考灰度模板 + HSV 直方图模型",
-        "正常跟踪：CSRT 逐帧更新",
-        "丢失判定：每5帧直方图相关度校验 + 越界检查，连续3帧确认",
+        "初始化：目标框（框选/自动识别）→ 灰度模板 + HSV 直方图特征模型",
+        "正常跟踪：CSRT 逐帧更新；自动识别用中值背景差运动检测",
+        "丢失判定：每5帧直方图相关度校验 + 逐帧越界检查，连续3次/3帧确认（防抖）",
         "搜索恢复：多尺度模板匹配 + 直方图验证，连续2帧命中即恢复",
-        "全程输出轨迹 / 状态 / 统计（丢失次数、恢复次数、FPS）",
+        "全程输出轨迹 / 状态 / 统计（丢失次数、恢复次数、FPS）；图片素材输出标注结果图",
     ]:
         para(tf, t, size=14, color=DARK, bullet=True, space_after=10)
 
@@ -250,7 +250,7 @@ def slide_recover(prs, idx):
     img(s, SCR + "shot4_遮挡后重新捕获_继续跟踪.png", 12.2, 7.0, w=9.2)
     img(s, SCR + "shot5_跟踪至末尾_轨迹完整.png", 22.2, 7.0, w=9.2)
     tf = add_tb(s, 2.2, 15.9, 30, 1.2)
-    para(tf, "实测：目标被完全遮挡约0.9秒 → 系统丢失1次 → 自动找回1次 → 继续跟踪至视频结束",
+    para(tf, "实测：目标被完全遮挡约0.9秒 → 系统丢失1次（第199帧）→ 自动找回1次（第262帧）→ 继续跟踪至视频结束",
          size=15, bold=True, color=GREEN, align=PP_ALIGN.CENTER, first=True)
 
 
@@ -261,17 +261,17 @@ def slide_server(prs, idx):
     para(tf, "Web 后端（Spring Boot + MyBatis）", size=18, bold=True, color=BLUE, first=True, space_after=8)
     for t in [
         "统一返回体 {code,msg,data} + JWT 拦截器鉴权",
-        "管理端接口强制 ADMIN 角色（普通用户访问返回403）",
-        "上传 → 落盘 → 登记任务(PENDING) → 立即返回任务ID",
+        "管理端接口强制 ADMIN；任务详情/启动再校验归属（越权返回403）",
+        "两段式上传：defer=true 提首帧 → 前端框选 → /start 开始处理",
         "线程池异步：PROCESSING → 调视觉服务 → 结果复制回存 → SUCCESS/FAILED(留痕)",
-        "BCrypt 密码加密，密码字段不参与序列化",
+        "BCrypt 密码加密，密码字段不参与序列化；视频/图片结果按类型落盘",
     ]:
         para(tf, t, size=13.5, color=DARK, bullet=True, space_after=8)
     tf2 = add_tb(s, 18.0, 3.0, 14.8, 14)
     para(tf2, "数据库 zongshe3_track", size=18, bold=True, color=BLUE, first=True, space_after=8)
     for t in [
         "t_user：id/username唯一/password(BCrypt)/role/nickname",
-        "t_task：user_id/文件路径/bbox/status(PENDING·PROCESSING·SUCCESS·FAILED)/结果路径/stats_json/error_msg",
+        "t_task：user_id/media_type(VIDEO·IMAGE)/文件路径/bbox/status(PENDING·PROCESSING·SUCCESS·FAILED)/结果路径/stats_json/error_msg",
         "1 用户 : N 任务（级联删除）",
     ]:
         para(tf2, t, size=13.5, color=DARK, bullet=True, space_after=8)
@@ -283,8 +283,9 @@ def slide_mini(prs, idx):
     header(s, "06 小程序端实现", idx)
     body_lines(s, [
         ("6 个页面：登录 / 注册 / 上传跟踪 / 处理结果 / 我的记录 / 个人中心；tabBar 三入口", 16, True, BLUE),
-        ("utils/request.js 统一封装：自动携带 JWT、401 自动跳登录；wx.uploadFile 携带文件与 bbox", 15, False, DARK),
-        ("结果页 1.5s 轮询任务状态，完成后播放结果视频并展示“丢失/恢复/FPS”统计", 15, False, DARK),
+        ("支持视频与图片素材；小程序无法取视频帧 → 后端提首帧，前端在图片上手指拖拽画框", 15, False, DARK),
+        ("显示坐标按“原始尺寸/显示尺寸”换算回素材原始像素，保证所见即所框", 15, False, DARK),
+        ("结果页 1.5s 轮询任务状态，完成后播放结果视频（图片素材则展示结果图）与统计", 15, False, DARK),
     ], size=15, gap=6)
     img(s, FIG + "mini_1_登录页原型.png", 3.2, 7.2, w=5.4)
     img(s, FIG + "mini_2_上传页原型.png", 11.2, 7.2, w=5.4)
@@ -309,8 +310,9 @@ def slide_effect_webuser(prs, idx):
     s = blank(prs)
     header(s, "07 运行效果（二）：网页检测端", idx)
     body_lines(s, [
-        ("浏览器直接打开 /track.html：把视频【拖拽】到网页或 Ctrl+V 粘贴，即可发起检测", 15, True, BLUE),
-        ("可提取首帧在画布上拖拽框选目标；处理完成后自动展示结果视频与“丢失/找回/FPS”统计", 14, False, DARK),
+        ("浏览器直接打开 /track.html：把视频或图片【拖拽】到网页或 Ctrl+V 粘贴，即可发起检测", 15, True, BLUE),
+        ("可提取视频首帧在画布上拖拽框选目标；图片本身即首帧，选好直接框选", 14, False, DARK),
+        ("处理完成后自动展示结果视频/结果图片与“丢失/找回/FPS”统计", 14, False, DARK),
     ], size=14, gap=6)
     img(s, SCR + "web_05_网页检测端_拖拽上传.png", 2.0, 6.6, w=14.4)
     img(s, SCR + "web_06_网页检测端_检测结果.png", 17.4, 6.6, w=14.4)
@@ -335,23 +337,23 @@ def slide_test(prs, idx):
     s = blank(prs)
     header(s, "08 系统测试", idx)
     tf = add_tb(s, 1.5, 3.0, 15.2, 15)
-    para(tf, "功能测试（18 项用例全部通过）", size=18, bold=True, color=BLUE, first=True, space_after=8)
+    para(tf, "功能测试（21 项用例全部通过）", size=18, bold=True, color=BLUE, first=True, space_after=8)
     for t in [
         "注册/登录/改密：唯一性、弱口令、错误密码校验 ✓",
-        "上传：格式白名单、bbox 校验、异步处理 ✓",
-        "权限：普通用户访问管理端返回 403 ✓",
+        "上传：格式白名单、bbox 校验、异步处理、图片素材链路 ✓",
+        "权限：普通用户访问管理端 403；访问他人任务 403 ✓",
         "管理端：用户增删查、重置密码、级联删除、统计 ✓",
-        "结果：/files 结果视频可在线播放 ✓",
+        "结果：/files 结果视频可在线播放、结果图片可查看 ✓",
     ]:
         para(tf, t, size=13.5, color=DARK, bullet=True, space_after=8)
     tf2 = add_tb(s, 17.8, 3.0, 15.0, 15)
     para(tf2, "视觉专项测试", size=18, bold=True, color=BLUE, first=True, space_after=8)
     for t in [
-        "场景A 简单运动：420帧全程跟踪，丢失0次 ✓",
-        "场景B 完全遮挡~0.9s：丢失1次 → 自动找回1次 → 恢复跟踪 ✓",
-        "场景C 轨迹完整：末帧跟踪框贴合目标 ✓",
-        "性能：约 95~101 FPS（≥25FPS 实时要求）✓",
-        "环境：Win11 / Java17 / MySQL8 / Python3.13+OpenCV4.10",
+        "场景A 无遮挡 420帧：全程跟踪，丢失0次（约104 FPS）✓",
+        "场景B 完全遮挡~0.9s：第199帧丢失 → 第262帧自动找回 → 恢复跟踪 ✓",
+        "场景C 轨迹完整：恢复后跟踪框回到目标上，末帧仍 TRACKING ✓",
+        "图片链路：输出 *_tracked.jpg，media_type=IMAGE ✓",
+        "环境：Win11 / JDK21 / H2内嵌库 / Python3.12+OpenCV4.11",
     ]:
         para(tf2, t, size=13.5, color=DARK, bullet=True, space_after=8)
 
@@ -377,17 +379,18 @@ def slide_summary(prs, idx):
     tf = add_tb(s, 2.2, 3.2, 29.4, 13)
     para(tf, "系统特色", size=20, bold=True, color=BLUE, first=True, space_after=10)
     for t in [
-        "三端联动、架构解耦：小程序 / Web管理端 / Python视觉服务 / MySQL+文件 完整闭环",
+        "三端联动、架构解耦：小程序 / Web管理端 / Python视觉服务 / 数据库+文件 完整闭环",
         "遮挡自动重检测：直方图质量校验 + 多尺度模板匹配 + 连续帧确认 → “丢了能找回”",
-        "工程化完整：JWT+角色鉴权、BCrypt、异步状态机、失败留痕、Git 协作、规范文档",
-        "轻量可复现：免深度学习训练，普通 PC 即可运行演示",
+        "素材完整：视频与图片同一链路处理，两端都支持首帧拖拽框选目标",
+        "工程化完整：JWT+角色鉴权+任务归属校验、BCrypt、异步状态机、失败留痕、Git 协作、规范文档",
+        "轻量可复现：免深度学习训练、数据库内嵌免安装，普通 PC 双击即用",
     ]:
         para(tf, t, size=16.5, color=DARK, bullet=True, space_after=10)
     para(tf, "展望", size=20, bold=True, color=ORANGE, space_after=10)
     for t in [
         "引入 SiamRPN/ByteTrack 等深度跟踪器 + 在线模板更新，提升长时/形变遮挡鲁棒性",
         "接入 RTSP 摄像头直播流，实现真正实时跟踪",
-        "小程序内画布框选目标；用户邮箱校验、审计日志、Docker 一键部署",
+        "框选交互增强（边角微调手柄）、结果图片一键下载、审计日志、Docker 一键部署",
     ]:
         para(tf, t, size=16.5, color=DARK, bullet=True, space_after=10)
 

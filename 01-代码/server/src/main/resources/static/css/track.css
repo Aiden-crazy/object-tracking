@@ -44,7 +44,11 @@ a { text-decoration: none; }
 
 /* ---------- 预览与框选 ---------- */
 .preview-flex { display: flex; gap: 20px; flex-wrap: wrap; }
-.preview-flex video { width: 520px; max-width: 100%; border-radius: 10px; background: #000; }
+.preview-flex video,
+.preview-flex img#srcImage {
+  width: 520px; max-width: 100%; border-radius: 10px; background: #000;
+  border: 1px solid #d5ddeb;
+}
 .box-tools { flex: 1; min-width: 260px; }
 #canvasWrap canvas {
   border: 1px solid #d5ddeb; border-radius: 8px; cursor: crosshair;

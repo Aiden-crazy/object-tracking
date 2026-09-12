@@ -5,12 +5,15 @@
 #       但如果改了 Java 源码又没装 Maven，就没法重新打包。本脚本解决这个问题。
 #
 # 原理：Spring Boot fat jar 内部结构固定为
-#         BOOT-INF/classes/  应用自己的 .class 与资源
+#         BOOT-INF/classes/  应用自己的 .class 与资源（application*.yml、static/**、db/*.sql）
 #         BOOT-INF/lib/      44 个依赖 jar
 #       于是可以把依赖 jar 解出来当 classpath、用 javac 直接编译源码，
-#       再把新的 .class 覆盖回 BOOT-INF/classes；资源文件与依赖原样不动。
+#       再把新的 .class **以及 src/main/resources 下的全部资源**覆盖回 BOOT-INF/classes；
+#       依赖 jar 原样不动。
 #
-# 注意：源码里用了 Lombok。jar 内自带的 lombok-1.18.24 不支持 JDK 21，
+# 注意 1：资源必须一起刷新！只更新 .class 的话，改了 admin.html / track.js / application.yml
+#         这些文件不会生效（java -jar 运行时是从 jar 内的 classpath 读资源的，不是读源码目录）。
+# 注意 2：源码里用了 Lombok。jar 内自带的 lombok-1.18.24 不支持 JDK 21，
 #       会抛 NoSuchFieldError: JCTree$JCImport ... 'qualid'，
 #       所以这里单独下载一个较新的 Lombok 作为 -processorpath。
 #
@@ -88,7 +91,7 @@ $libs = Get-ChildItem (Join-Path $Scratch 'BOOT-INF\lib') -Filter *.jar
 Write-Host "[3] 解出依赖 jar: $($libs.Count) 个"
 $cp = ($libs.FullName) -join ';'
 
-# ---------- 4) 编译 ----------
+# ---------- 4) 编译 + 刷新资源 ----------
 $srcs = (Get-ChildItem $SrcDir -Recurse -Filter *.java).FullName
 $stage = Join-Path $Scratch 'stage\BOOT-INF\classes'
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
@@ -103,6 +106,19 @@ Write-Host "[4] 编译 $($srcs.Count) 个源文件 ..."
 if ($LASTEXITCODE -ne 0) { throw "javac 编译失败（退出码 $LASTEXITCODE）" }
 Write-Host "    生成 $((Get-ChildItem $stage -Recurse -Filter *.class).Count) 个 class"
 
+# 资源（application*.yml、db/*.sql、static/** 等）一起打包，
+# 否则改了前端页面/配置后打出的 jar 仍是旧内容。
+$ResDir = Join-Path $Server 'src\main\resources'
+$resFiles = Get-ChildItem $ResDir -Recurse -File
+foreach ($f in $resFiles) {
+    $rel = $f.FullName.Substring($ResDir.Length + 1)
+    $dst = Join-Path $stage $rel
+    $dstDir = Split-Path -Parent $dst
+    if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
+    Copy-Item $f.FullName $dst -Force
+}
+Write-Host "    刷新资源 $($resFiles.Count) 个（含 static 前端页面与 application*.yml）"
+
 # ---------- 5) 覆盖回 jar 并校验 ----------
 $tmp = Join-Path $Scratch 'rebuilt.jar'
 Copy-Item $Jar $tmp
@@ -115,7 +131,8 @@ if ($code -ne 0) { throw "jar 更新失败（退出码 $code）" }
 $entries = & "$jdk\jar.exe" tf $tmp
 foreach ($need in 'BOOT-INF/classes/application.yml',
                  'BOOT-INF/classes/db/schema-h2.sql',
-                 'BOOT-INF/classes/static/track.html') {
+                 'BOOT-INF/classes/static/track.html',
+                 'BOOT-INF/classes/static/js/track.js') {
     if (-not ($entries | Where-Object { $_ -like "$need*" })) {
         throw "新 jar 丢了资源: $need"
     }

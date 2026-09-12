@@ -15,6 +15,7 @@ gui_track.py  —— 综合实践III《单目标跟踪系统》本地交互演�
 """
 import argparse
 import os
+import time
 
 import cv2
 
@@ -67,6 +68,12 @@ def main():
     out_path = os.path.join(os.path.abspath(args.out_dir),
                             src_name + "_gui_tracked.mp4")
 
+    # 实时帧率统计：stats["fps"] 只在 process_video() 结束时才写入，
+    # 交互式循环里必须自己统计，否则界面上永远显示 FPS:0.0
+    fps_win = []          # 最近若干帧的耗时
+    fps = 0.0
+    t_last = time.time()
+
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -92,7 +99,17 @@ def main():
         else:
             box, state = tracker.update(frame)
             tracker._annotate(display, box, state)
-            cv2.putText(display, "FPS:%.1f" % tracker.stats["fps"],
+            now = time.time()
+            dt = now - t_last
+            t_last = now
+            if dt > 0:
+                fps_win.append(dt)
+                if len(fps_win) > 30:
+                    fps_win.pop(0)
+                avg = sum(fps_win) / len(fps_win)
+                fps = 1.0 / avg if avg > 0 else 0.0
+            tracker.stats["fps"] = round(fps, 2)     # 同步到统计信息，便于退出后查看
+            cv2.putText(display, "FPS:%.1f" % fps,
                         (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
             if writer:
                 writer.write(display)

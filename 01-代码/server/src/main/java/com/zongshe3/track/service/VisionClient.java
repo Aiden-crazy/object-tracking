@@ -78,9 +78,10 @@ public class VisionClient {
     /**
      * 调用视觉服务进行单目标跟踪。
      *
-     * @param videoPath 服务器本地视频绝对路径
-     * @param bbox      首帧目标框 "x,y,w,h"，可空(自动取画面中央)
-     * @return {resultVideo: 结果视频绝对路径, logFile: 日志绝对路径, statsJson: 统计JSON文本}
+     * @param videoPath 服务器本地视频/图片绝对路径
+     * @param bbox      目标框 "x,y,w,h"，可空（视频=自动识别运动目标，图片=画面中央区域）
+     * @return {resultVideo: 结果文件绝对路径(视频.mp4/图片.jpg), logFile: 日志绝对路径,
+     *          statsJson: 统计JSON文本, mediaType: VIDEO/IMAGE}
      */
     public Map<String, String> track(String videoPath, String bbox) {
         try {
@@ -106,6 +107,7 @@ public class VisionClient {
             out.put("resultVideo", node.path("result_video").asText());
             out.put("logFile", node.path("log_file").asText());
             out.put("statsJson", node.path("stats").toString());
+            out.put("mediaType", node.path("media_type").asText("VIDEO"));
             return out;
         } catch (BizException e) {
             throw e;

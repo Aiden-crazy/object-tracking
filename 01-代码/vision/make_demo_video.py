@@ -55,6 +55,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out_dir", default="../../demo")
     ap.add_argument("--video_name", default="demo_ball_track.mp4")
+    ap.add_argument("--no_wall", action="store_true",
+                    help="不绘制遮挡墙，生成【目标无遮挡匀速运动】的对照测试视频"
+                         "（用于视觉专项测试场景A，默认视频含遮挡墙=场景B）")
     args = ap.parse_args()
 
     out_dir = os.path.abspath(args.out_dir)
@@ -72,10 +75,11 @@ def main():
         # 球
         cv2.circle(frame, (cx, cy), BALL_R, BALL_COLOR, -1)
         cv2.circle(frame, (cx, cy), BALL_R - 6, (120, 170, 250), -1)  # 高光
-        # 遮挡墙画在球之后，产生"被遮挡"效果
-        cv2.rectangle(frame, (WALL_X0, 0), (WALL_X1, H), WALL_COLOR, -1)
-        cv2.line(frame, (WALL_X0, 0), (WALL_X0, H), (20, 20, 20), 2)
-        cv2.line(frame, (WALL_X1, 0), (WALL_X1, H), (20, 20, 20), 2)
+        # 遮挡墙画在球之后，产生"被遮挡"效果；--no_wall 时生成对照视频
+        if not args.no_wall:
+            cv2.rectangle(frame, (WALL_X0, 0), (WALL_X1, H), WALL_COLOR, -1)
+            cv2.line(frame, (WALL_X0, 0), (WALL_X0, H), (20, 20, 20), 2)
+            cv2.line(frame, (WALL_X1, 0), (WALL_X1, H), (20, 20, 20), 2)
 
         if i == 0:
             first_bbox = [cx - BALL_R, cy - BALL_R, 2 * BALL_R, 2 * BALL_R]
@@ -94,9 +98,10 @@ def main():
         "frames": FRAMES,
         "size": [W, H],
         "first_bbox": first_bbox,
-        "wall_x_range": [WALL_X0, WALL_X1],
-        "occluded_frames": [i for i in range(FRAMES)
-                            if occluded_by_wall(ball_center(i)[0], BALL_R)],
+        "wall_x_range": None if args.no_wall else [WALL_X0, WALL_X1],
+        "occluded_frames": [] if args.no_wall else [
+            i for i in range(FRAMES)
+            if occluded_by_wall(ball_center(i)[0], BALL_R)],
     }
     meta_path = os.path.splitext(video_path)[0] + "_meta.json"
     with open(meta_path, "w", encoding="utf-8") as f:

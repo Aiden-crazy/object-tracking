@@ -31,6 +31,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -95,6 +96,10 @@ public class TaskService {
         return upload(userId, file, bbox, false);
     }
 
+    /** 图片扩展名（用于判定素材类型；不能只信 Content-Type，小程序上传常为 octet-stream） */
+    private static final java.util.Set<String> IMAGE_EXTS = java.util.Set.of(
+            ".jpg", ".jpeg", ".png", ".bmp", ".webp");
+
     /**
      * 上传。
      * defer=false：老流程，上传即异步跟踪（Web 端、老版小程序用）。
@@ -105,17 +110,20 @@ public class TaskService {
         if (file == null || file.isEmpty()) {
             throw new BizException("上传文件不能为空");
         }
-        String mediaType = (file.getContentType() != null
-                && file.getContentType().startsWith("image")) ? "IMAGE" : "VIDEO";
 
         String ext = "";
         String name = file.getOriginalFilename();
         if (name != null && name.contains(".")) {
-            ext = name.substring(name.lastIndexOf('.'));
+            ext = name.substring(name.lastIndexOf('.')).toLowerCase();
         }
         if (!ext.matches("\\.(mp4|avi|mov|mkv|jpg|jpeg|png|bmp|webp)")) {
             throw new BizException("仅支持 mp4/avi/mov/mkv 视频与 jpg/png 等图片格式");
         }
+        // 素材类型：扩展名优先，其次看 Content-Type
+        String mediaType = IMAGE_EXTS.contains(ext)
+                || (file.getContentType() != null
+                    && file.getContentType().startsWith("image"))
+                ? "IMAGE" : "VIDEO";
         String normBbox = normalizeBbox(bbox);
 
         TrackTask task = new TrackTask();
@@ -188,11 +196,8 @@ public class TaskService {
     }
 
     /** 两段式第二步：带上用户手指框选的目标框开始处理（bbox 为空则用自动识别结果） */
-    public TrackTask start(Long taskId, String bbox) {
-        TrackTask task = taskMapper.findById(taskId);
-        if (task == null) {
-            throw new BizException("任务不存在");
-        }
+    public TrackTask start(Long taskId, String bbox, Long userId, String role) {
+        TrackTask task = getTask(taskId, userId, role);   // 含归属校验
         if (!"PENDING".equals(task.getStatus())) {
             throw new BizException("该任务已开始处理或已结束");
         }
@@ -212,12 +217,15 @@ public class TaskService {
         taskMapper.markProcessing(taskId);
         try {
             Map<String, String> r = visionClient.track(task.getFilePath(), task.getBbox());
-            // 将结果视频与日志复制进本服务存储目录，便于 /files/** 访问
+            // 将结果与日志复制进本服务存储目录，便于 /files/** 访问
+            // 视频输出 *.mp4，图片输出 *.jpg（视觉服务按素材类型决定）
+            boolean isImage = "IMAGE".equals(task.getMediaType());
+            String resultName = taskId + (isImage ? "_tracked.jpg" : "_tracked.mp4");
             Path results = Paths.get(storageDir, "results");
             Files.createDirectories(results);
             Path vidSrc = Paths.get(r.get("resultVideo"));
             Path logSrc = Paths.get(r.get("logFile"));
-            Path vidDst = results.resolve(taskId + "_tracked.mp4");
+            Path vidDst = results.resolve(resultName);
             Path logDst = results.resolve(taskId + "_log.json");
             if (Files.exists(vidSrc)) {
                 Files.copy(vidSrc, vidDst, StandardCopyOption.REPLACE_EXISTING);
@@ -240,10 +248,17 @@ public class TaskService {
 
     // ---------------- 查询 ----------------
 
-    public TrackTask getTask(Long taskId) {
+    /**
+     * 查询任务详情。**必须做归属校验**：普通用户只能看自己的任务，
+     * 否则只要猜到自增 id 就能拿到别人的文件路径与结果（越权访问）。
+     */
+    public TrackTask getTask(Long taskId, Long userId, String role) {
         TrackTask t = taskMapper.findById(taskId);
         if (t == null) {
             throw new BizException("任务不存在");
+        }
+        if (!"ADMIN".equals(role) && !Objects.equals(t.getUserId(), userId)) {
+            throw new BizException(403, "无权访问该任务");
         }
         return t;
     }

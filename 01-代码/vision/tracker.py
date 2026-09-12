@@ -7,14 +7,19 @@ tracker.py  —— 综合实践III《单目标跟踪系统》视觉核心模块
       1) 目标跟踪：使用 OpenCV CSRT 相关滤波跟踪器对视频/摄像头画面中的目标进行持续跟踪；
       2) 遮挡检测：跟踪过程中周期性用"参考直方图相似度"监测跟踪质量，
                    目标被遮挡/丢失（跟踪框漂移、相似度骤降）时进入搜索模式；
-      3) 重检测与恢复：搜索模式下使用【ORB 特征模板匹配 + HSV 直方图验证】在全图
+      3) 重检测与恢复：搜索模式下使用【多尺度灰度模板匹配 + HSV 直方图验证】在全图
                        重新定位目标，连续多帧确认后重新初始化跟踪器，实现
                        "目标被短暂遮挡后再次出现能再次捕捉并继续跟踪"。
     本模块为无界面核心逻辑，供 GUI 演示（gui_track.py）、Web 服务（api_service.py）复用。
 
+输入支持视频与图片两种素材（对应任务书"用户提交要处理的图片或者视频"）：
+    - 视频：process_video() —— 逐帧跟踪并输出带标注的结果视频；
+    - 图片：process_image() —— 单帧定位目标并在图上标注目标框，输出结果图片。
+
 运行方式：
     python tracker.py --video ../../demo/demo_ball_track.mp4 --bbox x,y,w,h
                       [--out_dir ...] [--show]
+    python tracker.py --image ../../demo/screenshots/shot1_源视频首帧_目标待框选.png
 """
 import argparse
 import json
@@ -60,13 +65,36 @@ HIST_FOUND_TH = 0.55    # 候选框直方图相关度阈值（高于此值视为
 HIST_LOST_TH = 0.28     # 跟踪框直方图相关度低于此值判定目标可能丢失
 TM_FOUND_TH = 0.72      # 模板匹配归一化分数阈值（搜索命中）
 SEARCH_CONFIRM = 2      # 连续 N 帧命中才确认找回（防误报）
-LOST_CONFIRM = 3        # 连续 N 帧疑似丢失才进入搜索模式（防抖）
+LOST_CONFIRM = 3        # 连续 N 次直方图校验未通过才进入搜索模式（防抖）
+OOB_CONFIRM = 3         # 连续 N 帧跟踪框越界才进入搜索模式（防抖）
 SCALES = [0.85, 1.0, 1.15]   # 模板匹配多尺度
 VERIFY_EVERY = 5        # 每 N 帧做一次直方图质量校验
 MAX_TRAIL = 60          # 轨迹拖尾点数
 
 
 # ---------------- 首帧提取 / 自动目标检测 ----------------
+
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+
+
+def is_image_path(path):
+    """按扩展名判断素材是图片还是视频（任务书要求图片、视频都能处理）。"""
+    return os.path.splitext(str(path))[1].lower() in IMAGE_EXTS
+
+
+def imread_unicode(path):
+    """读取图片，返回 BGR ndarray；失败抛 IOError。
+
+    与 imwrite_unicode 同理：cv2.imread 在 Windows 上不支持非 ASCII 路径
+    （本工程目录名是中文），必须用 Python 原生 open() 读字节再 imdecode。
+    """
+    with open(path, "rb") as f:
+        buf = np.frombuffer(f.read(), dtype=np.uint8)
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    if img is None:
+        raise IOError("图片读取失败或格式不支持: " + str(path))
+    return img
+
 
 def imwrite_unicode(path, image, jpeg_quality=92):
     """把图片写到 path，返回是否成功。
@@ -91,11 +119,26 @@ def imwrite_unicode(path, image, jpeg_quality=92):
 
 
 def extract_first_frame(video_path, out_image):
-    """提取视频首帧保存为图片，返回 (图片路径, 宽, 高)。
+    """提取素材首帧保存为图片，返回 (图片路径, 宽, 高)。
 
-    注意：这里固定取**第 0 帧**，与 process_video() 初始化跟踪器的帧保持一致；
+    视频：取第 0 帧；图片：素材本身即"首帧"。
+    注意：视频这里固定取**第 0 帧**，与 process_video() 初始化跟踪器的帧保持一致；
     若取别的帧，用户在该图上画的框就会和跟踪起点错位。
     """
+    if is_image_path(video_path):
+        # 图片素材：本身就是首帧，直接写出一份供前端显示
+        frame = imread_unicode(video_path)
+        if not out_image:
+            base, _ = os.path.splitext(video_path)
+            out_image = base + "_first.jpg"
+        d = os.path.dirname(os.path.abspath(out_image))
+        if d:
+            os.makedirs(d, exist_ok=True)
+        if not imwrite_unicode(out_image, frame, 92):
+            raise IOError("首帧图片写入失败: " + out_image)
+        h, w = frame.shape[:2]
+        return os.path.abspath(out_image), w, h
+
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise IOError("无法打开视频: " + video_path)
@@ -127,7 +170,10 @@ def auto_detect_bbox(video_path, sample_frames=40, max_side=320):
 
     因为跟踪器是在第 0 帧初始化的，所以检测结果也取第 0 帧上的位置。
     检测失败（目标静止、镜头整体晃动、画面过暗等）返回 None，由调用方回退。
+    图片素材没有"运动"概念，直接返回 None（由调用方回退为画面中央区域）。
     """
+    if is_image_path(video_path):
+        return None
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         return None
@@ -288,7 +334,8 @@ class SingleObjectTracker:
             "fps": 0.0, "tracker": backend, "tracker_requested": backend,
             "opencv": cv2.__version__,
         }
-        self._lost_counter = 0
+        self._lost_counter = 0     # 连续"直方图相似度过低"的校验次数
+        self._oob_counter = 0      # 连续"跟踪框越界"的帧数
         self._search_hits = 0
         self._last_bbox = None
         self._trail = []
@@ -304,6 +351,9 @@ class SingleObjectTracker:
             raise ValueError("目标框过小，无法初始化跟踪器")
         self._ref_bbox = (x, y, w, h)
         self._ref_size = (w, h)
+        self._lost_counter = 0
+        self._oob_counter = 0
+        self._search_hits = 0
         self._build_reference(frame)
         self._new_tracker(frame, (x, y, w, h))
         self.state = TrackerState.TRACKING
@@ -350,11 +400,14 @@ class SingleObjectTracker:
                 return self._search(frame)
 
             x, y, bw, bh = [int(v) for v in bbox]
-            # 越界判定
+            # 越界判定：连续越界 OOB_CONFIRM 帧判定丢失
             out_of_bounds = (x + bw <= 0 or y + bh <= 0 or
                              x >= w or y >= h)
-            # 周期性直方图质量校验
-            sim = 1.0
+            self._oob_counter = self._oob_counter + 1 if out_of_bounds else 0
+
+            # 周期性直方图质量校验：只有校验帧才更新计数，
+            # 否则"每隔 VERIFY_EVERY 帧才看一次"会被中间帧的默认相似度冲掉，
+            # LOST_CONFIRM 这个连续帧确认阈值将永远无法达到（防抖形同虚设）。
             if self.stats["total_frames"] % VERIFY_EVERY == 0:
                 cx0, cy0 = max(0, x), max(0, y)
                 cx1 = min(w, x + bw)
@@ -364,20 +417,22 @@ class SingleObjectTracker:
                         frame[cy0:cy1, cx0:cx1])
                 else:
                     sim = 0.0
+                self._lost_counter = (self._lost_counter + 1
+                                      if sim < HIST_LOST_TH else 0)
 
-            if out_of_bounds or sim < HIST_LOST_TH:
-                self._lost_counter += 1
-                if self._lost_counter >= LOST_CONFIRM:
-                    self._enter_search()
-                    return self._search(frame)
-            else:
-                self._lost_counter = 0
-                self._last_bbox = (x, y, bw, bh)
-                self._trail.append(((x + bw / 2), (y + bh / 2)))
-                if len(self._trail) > MAX_TRAIL:
-                    self._trail.pop(0)
-                self.stats["tracking_frames"] += 1
-                return self._last_bbox, self.state
+            if (self._lost_counter >= LOST_CONFIRM
+                    or self._oob_counter >= OOB_CONFIRM):
+                # 目标判定丢失：进入搜索模式
+                self._enter_search()
+                return self._search(frame)
+
+            # 未达到确认阈值：继续按跟踪器给出的框输出（防抖，避免单帧抖动就全图搜索）
+            self._last_bbox = (x, y, bw, bh)
+            self._trail.append(((x + bw / 2), (y + bh / 2)))
+            if len(self._trail) > MAX_TRAIL:
+                self._trail.pop(0)
+            self.stats["tracking_frames"] += 1
+            return self._last_bbox, self.state
 
         # SEARCHING 分支
         return self._search(frame)
@@ -388,6 +443,8 @@ class SingleObjectTracker:
             self.stats["lost_events"] += 1
         self.state = TrackerState.SEARCHING
         self._search_hits = 0
+        self._lost_counter = 0
+        self._oob_counter = 0
 
     def _search(self, frame):
         """全图重检测：多尺度模板匹配 + 直方图验证 + 连续帧确认。"""
@@ -406,6 +463,8 @@ class SingleObjectTracker:
                 self._new_tracker(frame, best)
                 self.state = TrackerState.TRACKING
                 self.stats["recoveries"] += 1
+                self._lost_counter = 0
+                self._oob_counter = 0
                 self._last_bbox = best
                 self._trail.append(((best[0] + best[2] / 2),
                                     (best[1] + best[3] / 2)))
@@ -516,6 +575,7 @@ class SingleObjectTracker:
             self.state = TrackerState.LOST_FINAL
         self.stats.update({
             "final_state": self.state,
+            "media_type": "VIDEO",
             "processed_frames": frame_idx,
             "fps": round(frame_idx / elapsed, 2) if elapsed > 0 else 0.0,
             "out_video": out_video,
@@ -524,6 +584,71 @@ class SingleObjectTracker:
         if log_path:
             with open(log_path, "w", encoding="utf-8") as f:
                 json.dump({"stats": self.stats, "frames": log_rows},
+                          f, ensure_ascii=False, indent=1)
+        return self.stats
+
+    # ------------------------------------------------------------
+    def process_image(self, image_path, bbox, out_image=None, log_path=None):
+        """对**单张图片**执行目标定位与标注，返回统计信息。
+
+        任务书要求"用户提交要处理的图片或者视频"，图片素材没有后续帧，
+        因此这里的视觉处理为：在图片上确定目标位置（用户框选或自动识别），
+        用目标框标注后输出结果图片，并给出与视频流程一致口径的特征统计
+        （颜色直方图相似度、目标框来源等），保证两种素材的处理链路一致。
+        """
+        frame = imread_unicode(image_path)
+        h, w = frame.shape[:2]
+        t0 = time.time()
+
+        auto_used = None
+        if bbox is None:
+            # 单张图片没有帧间运动，无法做运动目标检测，回退为画面中央区域
+            auto_used = center_bbox(w, h)
+            print("[提示] 图片素材无运动信息，自动目标回退为画面中央区域:", auto_used)
+            bbox = auto_used
+
+        self.stats["auto_bbox"] = (",".join(map(str, auto_used))
+                                   if auto_used else None)
+        self.stats["bbox_source"] = ("auto" if auto_used else "manual")
+
+        x, y, bw, bh = [int(v) for v in bbox]
+        x, y = max(0, min(x, w - 5)), max(0, min(y, h - 5))
+        bw, bh = max(5, min(bw, w - x)), max(5, min(bh, h - y))
+        box = (x, y, bw, bh)
+
+        # 建立特征模型（灰度模板 + HSV 直方图），与视频流程完全一致
+        self._ref_bbox = box
+        self._ref_size = (bw, bh)
+        self._build_reference(frame)
+        self._last_bbox = box
+        self._trail.append((x + bw / 2, y + bh / 2))
+        self.state = TrackerState.TRACKING
+
+        self._annotate(frame, box, TrackerState.TRACKING)
+        cv2.putText(frame, "IMAGE TARGET", (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 200, 0), 2)
+        if out_image and not imwrite_unicode(out_image, frame, 92):
+            raise IOError("结果图片写入失败: " + out_image)
+
+        elapsed = time.time() - t0
+        self.stats.update({
+            "total_frames": 1,
+            "tracking_frames": 1,
+            "searching_frames": 0,
+            "lost_events": 0,
+            "recoveries": 0,
+            "final_state": "IMAGE_DONE",
+            "media_type": "IMAGE",
+            "processed_frames": 1,
+            "fps": round(1 / elapsed, 2) if elapsed > 0 else 0.0,
+            "out_video": out_image,
+            "target_bbox": ",".join(str(int(v)) for v in box),
+        })
+        if log_path:
+            with open(log_path, "w", encoding="utf-8") as f:
+                json.dump({"stats": self.stats,
+                           "frames": [{"frame": 0, "state": TrackerState.TRACKING,
+                                       "bbox": list(box)}]},
                           f, ensure_ascii=False, indent=1)
         return self.stats
 
@@ -549,29 +674,41 @@ class SingleObjectTracker:
 # ---------------- CLI ----------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--video", required=True, help="输入视频路径")
+    ap.add_argument("--video", default=None, help="输入视频路径")
+    ap.add_argument("--image", default=None, help="输入图片路径（与 --video 二选一）")
     ap.add_argument("--bbox", default=None,
-                    help="首帧目标框 x,y,w,h；缺省自动取画面中央区域")
+                    help="目标框 x,y,w,h；视频缺省时自动识别运动目标，"
+                         "图片缺省时回退为画面中央区域")
     ap.add_argument("--out_dir", default=".")
     ap.add_argument("--backend", default="CSRT", choices=["CSRT", "KCF"])
     ap.add_argument("--show", action="store_true", help="弹窗实时显示")
     ap.add_argument("--max_frames", type=int, default=None)
     args = ap.parse_args()
 
+    if not args.video and not args.image:
+        ap.error("请至少指定 --video 或 --image")
+
     out_dir = os.path.abspath(args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
-    base = os.path.splitext(os.path.basename(args.video))[0]
-    out_video = os.path.join(out_dir, base + "_tracked.mp4")
-    log_path = os.path.join(out_dir, base + "_log.json")
+    src = args.image or args.video
+    base = os.path.splitext(os.path.basename(src))[0]
 
     bbox = None
     if args.bbox:
         bbox = [int(v) for v in args.bbox.replace(" ", "").split(",")]
 
     st = SingleObjectTracker(backend=args.backend)
-    stats = st.process_video(args.video, bbox, out_video=out_video,
-                             log_path=log_path, max_frames=args.max_frames,
-                             show=args.show)
+    if args.image:
+        out_image = os.path.join(out_dir, base + "_tracked.jpg")
+        log_path = os.path.join(out_dir, base + "_log.json")
+        stats = st.process_image(args.image, bbox, out_image=out_image,
+                                 log_path=log_path)
+    else:
+        out_video = os.path.join(out_dir, base + "_tracked.mp4")
+        log_path = os.path.join(out_dir, base + "_log.json")
+        stats = st.process_video(args.video, bbox, out_video=out_video,
+                                 log_path=log_path, max_frames=args.max_frames,
+                                 show=args.show)
     print(json.dumps(stats, ensure_ascii=False, indent=2))
 
 

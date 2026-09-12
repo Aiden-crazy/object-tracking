@@ -42,10 +42,10 @@
 ├── 启动-管理端.bat / Start-Admin.bat             # ★ 双击启动（管理端，英文名为兼容别名）
 ├── 01-代码/
 │   ├── vision/              # 视觉处理模块（Python + OpenCV + FastAPI）
-│   │   ├── tracker.py           # 跟踪器核心：CSRT + 遮挡检测/重检测状态机
+│   │   ├── tracker.py           # 跟踪器核心：CSRT + 遮挡检测/重检测状态机 + 图片定位
 │   │   ├── gui_track.py         # 本地交互演示（鼠标框选目标/摄像头）
 │   │   ├── api_service.py       # FastAPI 视觉服务（端口 9000，含状态首页）
-│   │   ├── make_demo_video.py   # 合成含遮挡场景的测试视频
+│   │   ├── make_demo_video.py   # 合成测试视频（--no_wall 生成无遮挡对照视频）
 │   │   ├── requirements.txt     # Python 依赖清单（脚本自动安装）
 │   │   └── extract_screens.py   # 从结果视频抽取报告截图
 │   ├── server/              # Web 后端 Spring Boot 3（端口 8080，默认内嵌 H2）
@@ -60,8 +60,15 @@
 │   └── miniprogram/         # 微信小程序端
 ├── 02-文档/                  # 课程设计报告 docx + 预览 PDF
 ├── 03-答辩PPT/               # 答辩 PPT
-├── demo/                    # 测试视频与截图/示意图（vision_out 为运行产物不入仓）
-├── tools/                   # 生成脚本 + 一键启动逻辑(start_all.ps1)
+├── demo/                    # 测试素材与截图/示意图（vision_out 为运行产物不入仓）
+│   ├── demo_ball_track.mp4      # 场景B：含遮挡墙的合成视频（遮挡恢复测试）
+│   ├── demo_ball_seamless.mp4   # 场景A：同规格无遮挡对照视频
+│   └── demo_test_image.png      # 图片素材链路测试图片
+├── tools/                   # 生成脚本 + 一键启动 + 回归测试
+│   ├── start_all.ps1             # 一键启动逻辑（环境探测/装依赖/起服务）
+│   ├── build_jar_nomaven.ps1     # 无 Maven 环境下重新打包 jar
+│   ├── regression_test.py        # 全链路接口回归测试（50 项断言，退出码可直接用）
+│   ├── gen_report.py 等          # 报告/PPT/示意图生成脚本
 ├── .gitignore / .gitattributes
 └── README.md
 ```
@@ -102,7 +109,7 @@ java -jar target/track-server-1.0.0.jar
 | 页面 | 地址 |
 |---|---|
 | 系统首页 | `http://localhost:8080/` |
-| **网页检测端** | `http://localhost:8080/track.html`（拖拽/粘贴视频→框选/自动目标→检测→回看） |
+| **网页检测端** | `http://localhost:8080/track.html`（拖拽/粘贴视频或图片→首帧框选/自动目标→检测→回看） |
 | Web 管理端 | `http://localhost:8080/admin.html`（admin / 123456） |
 | 视觉状态页 | `http://127.0.0.1:9000/`（含接口文档 /docs） |
 | 小程序端 | 微信开发者工具导入 `01-代码/miniprogram` |
@@ -145,6 +152,30 @@ git push -u origin main
 
 ---
 
+## 系统自测（回归测试，可留作测试证据）
+
+系统启动后（双击 `启动-网页检测端.bat` 即可），在工程根目录执行：
+
+```bash
+python tools/regression_test.py
+```
+
+脚本会自动走完 50 项端到端断言：视觉服务健康检查、注册/登录/改密/弱口令、
+视频两段式流程（提首帧 → 框选 → start → 结果视频）、图片素材流程（→ 结果图片）、
+任务归属越权校验（他人任务返回 403）、管理端用户增删查改与统计、视觉服务
+prepare/track_local 等。全部通过时退出码为 0，可直接用于答辩演示前的自检：
+
+```
+汇总：通过 50 项，失败 0 项
+```
+
+> 测局域网上的那台机器：`python tools/regression_test.py --base http://10.100.0.36:8080`
+> 视觉模块单独的专项测试（场景A无遮挡/场景B遮挡恢复/图片链路）见报告表4-3，可用
+> `python 01-代码/vision/tracker.py --video demo/demo_ball_track.mp4 --out_dir demo/vision_out`
+> 与 `--video demo/demo_ball_seamless.mp4` 复现。
+
+---
+
 ## 验收自检（对照《综合实践III任务书》）
 
 | 任务书要求 | 本工程对应 | 状态 |
@@ -153,9 +184,12 @@ git push -u origin main
 | 移动开发（小程序端） | miniprogram/（6页面） | ✅ |
 | 机器视觉（核心处理） | vision/ CSRT跟踪+遮挡重检测 | ✅ |
 | 用户管理：注册/改密、删除/重置密码 | t_user + 对应接口 | ✅ |
-| 图片/视频的存储与查询 | t_task + uploads 存储 + /files 访问 + 历史回看 | ✅ |
-| 提交→服务端处理→结果返回→入库→管理 | 全链路实测通过 | ✅ |
-| 遮挡后能再次捕捉继续跟踪 | 实测 丢失1次→自动找回1次→跟踪至结束 | ✅ |
+| 图片/视频的存储与查询 | t_task(media_type VIDEO/IMAGE) + uploads 存储 + /files 访问 + 历史回看 | ✅ |
+| 用户提交**图片或者视频** | 两种素材同一链路：视频→结果视频，图片→标注结果图 | ✅ |
+| 用户从摄像头画面或视频中**框出目标对象** | 小程序/网页端首帧拖拽框选；本地 gui_track.py 支持 `--video` 与 `--camera 0` | ✅ |
+| 提交→服务端处理→结果返回→入库→管理 | 全链路实测通过（tools/regression_test.py 50/50） | ✅ |
+| 目标特征提取与识别 | 首帧目标区域灰度模板 + HSV 二维直方图特征模型 | ✅ |
+| 遮挡后能再次捕捉继续跟踪 | 实测 丢失1次(第199帧)→自动找回1次(第262帧)→跟踪至结束 | ✅ |
 | 界面展示 | 网页检测端 + 管理端 + 小程序 + 视觉GUI | ✅ |
 | 命名规范、注释含学号姓名 | 文件头注释（替换占位后生效） | ✅ |
 | 团队2人分工 + 版本控制 | 报告2.1 + Git 仓库（已提交） | ✅ |
@@ -171,6 +205,11 @@ git push -u origin main
 - **网页里点"提取首帧"没反应 / 结果视频黑屏**：视频编码问题。浏览器只支持 H.264 等格式，
   本项目结果视频已自动转码 H.264；源视频若无法预览取帧请用 mp4(H.264)（手机拍的通常可以），
   或直接使用"自动目标"检测。依赖 `pip install imageio-ffmpeg`（脚本会自动装）。
+- **上传图片会怎样**：图片素材不需要"提首帧"，选好后直接进入框选步骤（图片本身即首帧），
+  提交后输出的是一张标注了目标框的结果图片（`*_tracked.jpg`）；此时没有"运动"信息，
+  自动目标回退为画面中央区域，建议手动框选。
+- **任务列表里能看到别人的任务吗**：不能。`/api/task/{id}` 与 `/api/task/{id}/start`
+  都会校验任务归属，访问他人任务返回 403；管理员可在管理端查看全部任务。
 - **双击脚本提示 Python/Java 缺失**：脚本会自动安装/下载；若失败请按提示手动安装
   Python 3.10+（勾选 Add to PATH）或 Java 17（adoptium.net），再双击一次。
 - **明明装了 Python/Java，脚本却说找不到**：启动脚本已不依赖 PATH，会依次自动探测

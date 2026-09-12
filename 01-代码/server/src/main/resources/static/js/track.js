@@ -1,8 +1,11 @@
 /* track.js —— 综合实践III《单目标跟踪系统》网页检测端逻辑
  * 作者：【姓名】  学号：【学号】  创建时间：2026-07
- * 功能描述：拖拽/粘贴/选择视频 → 首帧画框或自动目标 → 上传检测 →
- *           轮询进度 → 展示结果视频与统计 → 历史记录回看。
+ * 功能描述：拖拽/粘贴/选择 视频或图片 → 首帧画框或使用自动识别目标 → 上传检测 →
+ *           轮询进度 → 展示结果（视频/图片）与统计 → 历史记录回看。
  *           URL 带 ?demo=1 时自动展示最近一条成功结果（便于演示/截图）。
+ * 素材说明（对应任务书"用户提交要处理的图片或者视频"）：
+ *           视频走"提取首帧 → 画框"；图片本身就是首帧，直接进入画框步骤，
+ *           结果按扩展名自动选择 <video> 或 <img> 展示。
  */
 (function () {
   "use strict";
@@ -10,6 +13,7 @@
   var TOKEN_KEY = "zs3_user_token";
   var USER_KEY = "zs3_user_info";
   var DEMO_ACCOUNT = { username: "webdemo", password: "123456", nickname: "网页体验用户" };
+  var IMG_RE = /\.(jpg|jpeg|png|bmp|webp)$/i;
 
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -18,11 +22,13 @@
     });
   };
   var fmtTime = function (t) { return t ? String(t).replace("T", " ").substring(0, 19) : "-"; };
+  var isImageUrl = function (u) { return IMG_RE.test(String(u || "").split("?")[0]); };
 
   var state = {
-    file: null,          // 选中的视频 File
+    file: null,          // 选中的视频/图片 File
     url: null,           // objectURL
-    bbox: "",            // 手动框选坐标 x,y,w,h（视频原始像素）
+    isImage: false,      // 素材是否为图片
+    bbox: "",            // 手动框选坐标 x,y,w,h（原始像素）
     polling: false
   };
 
@@ -87,27 +93,49 @@
     });
   }
 
-  /* ---------------- 视频选择：拖拽 / 点击 / 粘贴 ---------------- */
+  /* ---------------- 视频/图片选择：拖拽 / 点击 / 粘贴 ---------------- */
   function acceptFile(file) {
     if (!file) { return; }
     var t = (file.type || "").toLowerCase();
     var name = (file.name || "").toLowerCase();
+    var isImage = t.indexOf("image") >= 0 || IMG_RE.test(name);
     var isVideo = t.indexOf("video") >= 0 ||
       /\.(mp4|avi|mov|mkv|webm|flv|wmv)$/.test(name);
-    if (!isVideo) { $("uploadMsg").textContent = "请选择视频文件（mp4/avi/mov/mkv 等）"; return; }
+    if (!isVideo && !isImage) {
+      $("uploadMsg").textContent = "请选择视频（mp4/avi/mov/mkv）或图片（jpg/png）文件";
+      return;
+    }
     $("uploadMsg").textContent = "";
     if (state.url) { URL.revokeObjectURL(state.url); }
     state.file = file;
     state.url = URL.createObjectURL(file);
+    state.isImage = isImage;
     state.bbox = "";
     wantExtract = false;
-    $("extractBtn").disabled = false;
-    $("extractBtn").textContent = "提取首帧 · 画框选目标";
-    $("srcVideo").src = state.url;
+    hideBoxUI();
     $("previewBox").classList.remove("hidden");
     $("submitBtn").classList.remove("hidden");
-    $("srcVideo").load();
-    hideBoxUI();
+
+    var v = $("srcVideo"), img = $("srcImage");
+    if (isImage) {
+      // 图片本身即"首帧"：不经过取帧流程，直接进入画框步骤
+      v.pause();
+      v.removeAttribute("src");
+      v.classList.add("hidden");
+      img.classList.remove("hidden");
+      $("extractBtn").disabled = false;
+      $("extractBtn").textContent = "在图片上框选目标";
+      img.onload = function () { drawStill(); };
+      img.src = state.url;
+    } else {
+      img.classList.add("hidden");
+      img.removeAttribute("src");
+      v.classList.remove("hidden");
+      $("extractBtn").disabled = false;
+      $("extractBtn").textContent = "提取首帧 · 画框选目标";
+      v.src = state.url;
+      v.load();
+    }
   }
 
   var drop = $("drop");
@@ -146,6 +174,7 @@
      不依赖单一的 seeked 事件 —— 同时由 loadeddata/seeked 事件驱动，
      并带 800ms 轮询兜底；等待期间显示“正在读取视频…”，
      超时/不支持则给出明确提示，避免“点了没反应”。
+     图片素材无取帧过程，直接 drawStill()。
      ============================================================ */
   var video = $("srcVideo");
   var canvas = $("boxCanvas");
@@ -154,6 +183,9 @@
 
   var wantExtract = false;   // 用户是否正在等待取帧
   var pumpTries = 0;
+
+  /** 当前要绘制的素材元素：图片模式用 <img>，视频模式用 <video> */
+  function srcEl() { return state.isImage ? $("srcImage") : video; }
 
   function hideBoxUI() {
     $("canvasWrap").classList.add("hidden");
@@ -165,6 +197,10 @@
   $("extractBtn").addEventListener("click", function () {
     if (!state.file) { return; }
     $("uploadMsg").textContent = "";
+    if (state.isImage) {
+      drawStill();                     // 图片：直接重新画到画布上
+      return;
+    }
     $("extractBtn").disabled = true;
     $("extractBtn").textContent = "正在读取视频…";
     wantExtract = true;
@@ -175,6 +211,28 @@
   // 事件驱动（加速响应）：数据就绪 / seek 完成 都会触发 pump
   video.addEventListener("loadeddata", function () { if (wantExtract) { pump(); } });
   video.addEventListener("seeked", function () { if (wantExtract) { pump(); } });
+
+  /** 把图片素材画到画布上，并进入框选状态 */
+  function drawStill() {
+    var img = $("srcImage");
+    var iw = img.naturalWidth, ih = img.naturalHeight;
+    if (!iw || !ih) {
+      $("uploadMsg").textContent = "无法读取该图片，请确认格式为 jpg/png 等常见格式。";
+      return;
+    }
+    var cw = Math.min(iw, 640);
+    var ch = Math.round(ih * (cw / iw));
+    canvas.width = cw; canvas.height = ch;
+    ctx.drawImage(img, 0, 0, cw, ch);
+    scaleK = iw / cw;
+    rect = null;
+    $("canvasWrap").classList.remove("hidden");
+    $("bboxInfo").classList.add("hidden");
+    $("resetBox").classList.add("hidden");
+    $("extractBtn").disabled = false;
+    $("extractBtn").textContent = "重新在图片上框选";
+    $("uploadMsg").textContent = "";
+  }
 
   function pump() {
     if (!wantExtract) { return; }
@@ -265,7 +323,7 @@
 
   function redraw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch (e) { /* ignore */ }
+    try { ctx.drawImage(srcEl(), 0, 0, canvas.width, canvas.height); } catch (e) { /* ignore */ }
     if (!rect) { return; }
     var x = Math.min(rect.x0, rect.x1), y = Math.min(rect.y0, rect.y1);
     var w = Math.abs(rect.x1 - rect.x0), h = Math.abs(rect.y1 - rect.y0);
@@ -299,7 +357,7 @@
   $("submitBtn").addEventListener("click", submit);
 
   function submit() {
-    if (!state.file) { alert("请先放入视频"); return; }
+    if (!state.file) { alert("请先放入视频或图片"); return; }
     var btn = $("submitBtn");
     btn.disabled = true;
     btn.textContent = "上传中…";
@@ -345,8 +403,21 @@
   }
 
   function showResult(t) {
+    var path = t.resultPath || "";
     $("resTaskNo").textContent = t.id;
-    $("resVideo").src = t.resultPath || "";
+    if (isImageUrl(path)) {
+      // 图片素材（含用户上传图片）：结果是一张标注了目标框的图片
+      $("resVideo").pause();
+      $("resVideo").removeAttribute("src");
+      $("resVideo").classList.add("hidden");
+      $("resImage").src = path;
+      $("resImage").classList.remove("hidden");
+    } else {
+      $("resImage").removeAttribute("src");
+      $("resImage").classList.add("hidden");
+      $("resVideo").classList.remove("hidden");
+      $("resVideo").src = path;
+    }
     $("secResult").classList.remove("hidden");
     $("resError").classList.add("hidden");
     renderStats(t.statsJson);
@@ -357,6 +428,9 @@
     $("secResult").classList.remove("hidden");
     $("resTaskNo").textContent = t.id;
     $("resVideo").removeAttribute("src");
+    $("resVideo").classList.add("hidden");
+    $("resImage").removeAttribute("src");
+    $("resImage").classList.add("hidden");
     $("resError").textContent = "处理失败：" + (t.errorMsg || "未知错误");
     $("resError").classList.remove("hidden");
     $("statsGrid").innerHTML = "";
@@ -365,9 +439,13 @@
   function renderStats(json) {
     var s = {};
     try { s = JSON.parse(json); } catch (e) { s = {}; }
+    var isImage = s.media_type === "IMAGE";
     var map = {
-      processed_frames: { k: "处理帧数", v: s.processed_frames != null ? s.processed_frames : (s.total_frames || "-") },
-      fps: { k: "处理速度(FPS)", v: s.fps != null ? s.fps : "-" },
+      processed_frames: {
+        k: isImage ? "素材类型" : "处理帧数",
+        v: isImage ? "图片" : (s.processed_frames != null ? s.processed_frames : (s.total_frames || "-"))
+      },
+      fps: { k: "处理速度(FPS)", v: isImage ? "-" : (s.fps != null ? s.fps : "-") },
       lost_events: { k: "丢失次数", v: s.lost_events != null ? s.lost_events : "-" },
       recoveries: { k: "自动找回", v: s.recoveries != null ? s.recoveries : "-" },
       final_state: { k: "最终状态", v: s.final_state || "-" }
@@ -394,7 +472,7 @@
           + "<td>" + fmtTime(t.createTime) + "</td>"
           + "<td>查看</td></tr>";
       });
-      $("hisRows").innerHTML = html || "<tr><td colspan='6' class='empty'>暂无记录，上传第一个视频试试吧</td></tr>";
+      $("hisRows").innerHTML = html || "<tr><td colspan='6' class='empty'>暂无记录，上传第一个视频或图片试试吧</td></tr>";
       $("hisMore").textContent = rows.length < d.total ? ("共 " + d.total + " 条记录（点击上行查看）") : "";
       bindHistoryClick(rows);
     }).catch(function () { /* 忽略 */ });

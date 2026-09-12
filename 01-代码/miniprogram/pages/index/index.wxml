@@ -1,13 +1,13 @@
 <view class="page">
 
   <view class="card">
-    <view class="step-title">1. 选择要跟踪的视频</view>
+    <view class="step-title">1. 选择要跟踪的视频或图片</view>
     <view wx:if="{{!videoPath}}" class="pick-area" bindtap="chooseVideo">
       <text class="pick-icon">＋</text>
-      <text class="pick-text">点击从相册/拍摄选择视频</text>
+      <text class="pick-text">点击从相册/拍摄选择视频或图片</text>
     </view>
     <view wx:else class="picked-row">
-      <text class="file-name">已选：{{videoName}}</text>
+      <text class="file-name">已选{{isImage ? '图片' : '视频'}}：{{videoName}}</text>
       <text class="change-link" bindtap="chooseVideo">重新选择</text>
     </view>
   </view>
@@ -20,7 +20,7 @@
   </view>
 
   <view class="card" wx:if="{{frameUrl}}">
-    <view class="step-title">2. 在首帧上框选目标</view>
+    <view class="step-title">2. 在{{isImage ? '图片' : '首帧'}}上框选目标</view>
     <view class="hint">在画面上<b>用手指拖拽</b>即可画出目标框；不画就用自动识别的结果。</view>
 
     <view id="frameWrap" class="frame-wrap"
@@ -41,11 +41,11 @@
 
     <view class="box-info">
       <block wx:if="{{box}}">
-        <text>目标框（视频原始像素）：x={{box.x}} y={{box.y}} w={{box.w}} h={{box.h}}</text>
+        <text>目标框（原始像素）：x={{box.x}} y={{box.y}} w={{box.w}} h={{box.h}}</text>
         <text wx:if="{{autoUsed}}" class="tag tag-auto">自动识别</text>
         <text wx:else class="tag tag-manual">手动框选</text>
       </block>
-      <text wx:else class="warn">尚未确定目标框：直接提交将由后端自动识别运动目标</text>
+      <text wx:else class="warn">{{isImage ? '尚未确定目标框：直接提交将使用画面中央区域' : '尚未确定目标框：直接提交将由后端自动识别运动目标'}}</text>
     </view>
 
     <view class="btn-row">

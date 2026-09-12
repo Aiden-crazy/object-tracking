@@ -10,16 +10,18 @@
     <view class="progress-bar"><view class="progress-inner"></view></view>
   </view>
 
-  <!-- 成功：结果视频 + 统计 -->
+  <!-- 成功：结果视频/图片 + 统计 -->
   <block wx:if="{{status==='SUCCESS'}}">
-    <video wx:if="{{resultUrl}}" src="{{resultUrl}}" class="result-video"
+    <video wx:if="{{resultUrl && !isImage}}" src="{{resultUrl}}" class="result-video"
            controls object-fit="contain"></video>
+    <image wx:if="{{resultUrl && isImage}}" src="{{resultUrl}}" class="result-video"
+           mode="widthFix"></image>
     <view class="sub-title">跟踪统计</view>
     <text class="stats-text">{{statsText}}</text>
     <view class="sub-title">说明</view>
     <text class="desc">
       绿框表示跟踪中；红框/SEARCHING 表示目标被遮挡丢失后的搜索状态；
-      系统重新找到目标后会恢复跟踪并继续输出轨迹。
+      系统重新找到目标后会恢复跟踪并继续输出轨迹。图片素材输出标注了目标框的结果图片。
     </text>
   </block>
 

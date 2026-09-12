@@ -3,9 +3,9 @@
  * track.html —— 综合实践III《单目标跟踪系统》网页检测端
  * 作者：【姓名】  学号：【学号】  创建时间：2026-07
  * 功能描述：
- *   1) 将视频【拖拽】到页面、点击选择、或直接 Ctrl+V 粘贴，即可发起检测；
- *   2) 可提取视频首帧在画布上【框选目标】或使用自动中央目标；
- *   3) 服务端完成跟踪后自动展示结果视频与统计（丢失/恢复/FPS 等）；
+ *   1) 将视频/图片【拖拽】到页面、点击选择、或直接 Ctrl+V 粘贴，即可发起检测；
+ *   2) 可提取视频首帧在画布上【框选目标】，或用自动识别目标（图片直接框选）；
+ *   3) 服务端完成跟踪后自动展示结果（视频/图片）与统计（丢失/恢复/FPS 等）；
  *   4) 底部展示本人历史任务记录，可点击回看。
  *   5) 附带 ?demo=1 参数：自动展示最近一条成功结果，便于演示与截图。
  * 访问：http://localhost:8080/track.html
@@ -30,19 +30,20 @@
 <main class="main">
   <!-- 1. 上传区 -->
   <section id="secUpload" class="card">
-    <div class="step">第 1 步 · 放入视频</div>
+    <div class="step">第 1 步 · 放入视频或图片</div>
     <div id="drop" class="drop" tabindex="0">
       <div class="drop-icon">⬇</div>
-      <div class="drop-main">将视频文件<b>拖拽到此处</b></div>
-      <div class="drop-sub">或 点击选择文件 ／ 在页面内按 Ctrl+V 直接粘贴（支持 mp4 / avi / mov / mkv 等）</div>
-      <input id="fileInput" type="file" accept="video/*" hidden>
+      <div class="drop-main">将视频/图片文件<b>拖拽到此处</b></div>
+      <div class="drop-sub">或 点击选择文件 ／ 在页面内按 Ctrl+V 直接粘贴（支持 mp4 / avi / mov / mkv 视频与 jpg / png 图片）</div>
+      <input id="fileInput" type="file" accept="video/*,image/*" hidden>
     </div>
 
     <!-- 选择后的预览与框选 -->
     <div id="previewBox" class="hidden">
-      <div class="step">第 2 步 · 预览并指定目标（可跳过，默认自动取画面中央）</div>
+      <div class="step">第 2 步 · 预览并指定目标（可跳过：视频自动识别运动目标，图片默认画面中央）</div>
       <div class="preview-flex">
         <video id="srcVideo" controls muted></video>
+        <img id="srcImage" class="hidden" alt="待处理图片">
         <div class="box-tools">
           <button id="extractBtn" class="btn primary">提取首帧 · 画框选目标</button>
           <div id="canvasWrap" class="hidden">
@@ -71,9 +72,10 @@
     <div class="step">检测结果 · 任务 #<span id="resTaskNo">-</span>
       <span id="resBadge" class="badge">SUCCESS</span></div>
     <video id="resVideo" controls class="res-video"></video>
+    <img id="resImage" class="hidden res-video" alt="检测结果图片">
     <div id="statsGrid" class="stats-grid"></div>
     <div id="resError" class="err hidden"></div>
-    <div class="result-tip">绿框=跟踪中；红框/SEARCHING=目标遮挡丢失后搜索；系统会自动找回并继续跟踪。</div>
+    <div class="result-tip">绿框=跟踪中；红框/SEARCHING=目标遮挡丢失后搜索；系统会自动找回并继续跟踪。图片素材输出标注了目标框的结果图片。</div>
   </section>
 
   <!-- 4. 历史记录 -->

@@ -15,6 +15,7 @@
 01-代码/server/trackdb.trace.db
 demo/vision_out/
 demo/.edge*/
+demo/*_first.jpg
 
 # --- Python ---
 __pycache__/

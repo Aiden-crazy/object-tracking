@@ -1,0 +1,17 @@
+{
+  "video": "D:\\Code\\综设3-单目标跟踪\\demo\\demo_ball_seamless.mp4",
+  "fps": 30,
+  "frames": 420,
+  "size": [
+    640,
+    480
+  ],
+  "first_bbox": [
+    37,
+    222,
+    36,
+    36
+  ],
+  "wall_x_range": null,
+  "occluded_frames": []
+}

@@ -1,9 +1,10 @@
 @echo off
 rem ============================================================
-rem  Start Web Detect Page (Track) - double click to launch
-rem  Author: [Name]  Student ID: [ID]  2026-07
-rem  Starts MySQL check + vision service(9000) + web backend(8080)
-rem  if not running, then opens browser at /track.html
+rem  Start Web DETECT page (single object tracking)
+rem  Chinese-name launcher; English alias = Start-Detect-Page.bat
+rem  Author: [Your Name]  Student ID: [Your ID]  2026-07
+rem  Double-click: auto start vision service(9000) + web backend(8080)
+rem  if not running, then open http://localhost:8080/track.html
 rem ============================================================
 setlocal
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
